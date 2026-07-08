@@ -1,0 +1,51 @@
+"""
+config.py
+集中管理設定:策略權重、持有天數、資料庫路徑等。
+
+之後如果你決定好要用哪些技術指標、或想調整各訊號的重要性,
+都只要改這裡的權重,不用動到其他程式邏輯。
+"""
+
+# ============ 策略設定 ============
+# 每個策略是一組權重組合,weight 總和不用剛好是 1,程式會自動正規化。
+# 你可以新增多組策略(例如 aggressive / conservative),
+# 之後 stats 報表會分別統計每個策略的長期表現,方便比較哪組最好。
+STRATEGIES = {
+    "default": {
+        "technical_weight": 0.4,   # 技術指標訊號的權重
+        "ml_weight": 0.3,          # 機器學習模型(隨機森林)訊號的權重
+        "news_weight": 0.3,        # 新聞情緒訊號的權重
+        "holding_days": 5,         # 建議後多少個交易日,回頭檢查結果
+    },
+    "news_focused": {
+        "technical_weight": 0.2,
+        "ml_weight": 0.2,
+        "news_weight": 0.6,
+        "holding_days": 5,
+    },
+    "technical_focused": {
+        "technical_weight": 0.6,
+        "ml_weight": 0.3,
+        "news_weight": 0.1,
+        "holding_days": 10,
+    },
+}
+
+DEFAULT_STRATEGY = "default"
+
+# ============ 資料來源設定 ============
+PRICE_HISTORY_PERIOD = "2y"     # 抓取歷史股價的區間
+NEWS_LOOKBACK_COUNT = 10        # 抓取最近幾則新聞來做情緒分析
+
+# ============ 情緒分析設定 ============
+# 若要用 Claude API 做更精準的新聞情緒判斷,設定環境變數 ANTHROPIC_API_KEY 即可。
+# 沒有設定的話,會自動退回使用內建的關鍵字判斷法(免費、不需要網路 API,但較粗略)。
+USE_CLAUDE_SENTIMENT = True     # 若偵測到 ANTHROPIC_API_KEY 才會啟用,否則自動 fallback
+
+# ============ 決策轉換設定 ============
+# 綜合分數 (-1 = 極度看空 ~ +1 = 極度看多) 轉換成 買入/觀望/賣出 百分比時的「敏感度」
+# 數字越大,分數些微差異就會讓百分比差異更明顯;數字越小,結果會越平均。
+DECISION_TEMPERATURE = 2.5
+
+# ============ 資料庫 ============
+DB_PATH = "data/advisor_records.db"
