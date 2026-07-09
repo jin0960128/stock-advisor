@@ -13,9 +13,11 @@ import warnings
 import pandas as pd
 import streamlit as st
 import yfinance as yf
+from streamlit_searchbox import st_searchbox
 
 import config
 import storage
+from stock_db import search_stocks
 from indicators import add_all_indicators
 from model import build_dataset, time_series_split, train_direction_model, \
     evaluate_model, predict_next_day
@@ -27,7 +29,7 @@ warnings.filterwarnings("ignore")
 
 st.set_page_config(page_title="股票分析建議系統", page_icon="📈", layout="wide")
 
-st.title("📈 單一股票分析 + 決策建議系統")
+st.title("股票分析 + 決策建議系統")
 st.caption("⚠️ 本工具僅供學習與研究參考,任何建議皆不構成投資建議,請務必自行判斷風險。")
 
 tab_analyze, tab_update, tab_stats, tab_history = st.tabs(
@@ -35,13 +37,35 @@ tab_analyze, tab_update, tab_stats, tab_history = st.tabs(
 )
 
 
+def _stock_search_options(searchterm: str):
+    """
+    給 st_searchbox 用的搜尋函式。
+    輸入部分代號或名稱(例如 "23"、"台積"、"aapl"),
+    回傳給下拉選單顯示的候選清單。
+    每個候選項是 (顯示文字, 實際回傳值) 的 tuple。
+    """
+    if not searchterm:
+        return []
+    results = search_stocks(searchterm, limit=10)
+    return [
+        (f"{code}　{name}　［{market}］", yf_code)
+        for code, yf_code, name, market in results
+    ]
+
+
 # ============ 分析頁 ============
 with tab_analyze:
     col1, col2 = st.columns([2, 1])
     with col1:
-        ticker = st.text_input(
-            "股票代號", placeholder="例如 2330.TW(台積電)或 AAPL(蘋果)"
-        ).strip()
+        ticker = st_searchbox(
+            _stock_search_options,
+            placeholder="輸入代號或名稱,例如 23、台積電、AAPL...",
+            label="股票代號",
+            key="ticker_searchbox",
+            clear_on_submit=False,
+            rerun_on_update=True,
+        )
+        ticker = (ticker or "").strip()
     with col2:
         strategy_name = st.selectbox("使用策略", list(config.STRATEGIES.keys()))
 
