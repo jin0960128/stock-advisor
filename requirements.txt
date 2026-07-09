@@ -9,3 +9,5 @@ streamlit>=1.35
 # 並設定環境變數 ANTHROPIC_API_KEY。沒有安裝/設定也完全沒問題,
 # 程式會自動改用內建的關鍵字情緒判斷法。
 anthropic>=0.40
+streamlit-searchbox
+   beautifulsoup4
