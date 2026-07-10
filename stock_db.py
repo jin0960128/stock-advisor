@@ -258,6 +258,100 @@ STOCK_DB = [
 # 移除建置時用的佔位資料
 STOCK_DB = [row for row in STOCK_DB if row[0] != "6others"]
 
+# ---------------- 國際市場:日本 / 韓國 / 歐洲 ----------------
+# Yahoo Finance 的日股常用 .T,韓國上市常用 .KS、KOSDAQ 常用 .KQ,
+# 歐洲各交易所依國家有不同後綴(.L/.DE/.PA/.AS/.SW/.MI/.MC)。
+INTERNATIONAL_STOCKS = [
+    # 日本
+    ("7203", "7203.T", "Toyota Motor 豐田汽車", "日本"),
+    ("6758", "6758.T", "Sony Group 索尼", "日本"),
+    ("9984", "9984.T", "SoftBank Group 軟銀集團", "日本"),
+    ("8306", "8306.T", "Mitsubishi UFJ 三菱日聯", "日本"),
+    ("9432", "9432.T", "NTT 日本電信電話", "日本"),
+    ("6861", "6861.T", "Keyence 基恩斯", "日本"),
+    ("7974", "7974.T", "Nintendo 任天堂", "日本"),
+    ("8035", "8035.T", "Tokyo Electron 東京威力科創", "日本"),
+    ("4063", "4063.T", "Shin-Etsu 信越化學", "日本"),
+    ("9983", "9983.T", "Fast Retailing 迅銷", "日本"),
+    ("6098", "6098.T", "Recruit Holdings", "日本"),
+    ("6501", "6501.T", "Hitachi 日立", "日本"),
+
+    # 韓國
+    ("005930", "005930.KS", "Samsung Electronics 三星電子", "韓國"),
+    ("000660", "000660.KS", "SK Hynix SK海力士", "韓國"),
+    ("035420", "035420.KS", "NAVER", "韓國"),
+    ("035720", "035720.KS", "Kakao", "韓國"),
+    ("005380", "005380.KS", "Hyundai Motor 現代汽車", "韓國"),
+    ("000270", "000270.KS", "Kia 起亞", "韓國"),
+    ("051910", "051910.KS", "LG Chem LG化學", "韓國"),
+    ("373220", "373220.KS", "LG Energy Solution", "韓國"),
+    ("207940", "207940.KS", "Samsung Biologics 三星生物製劑", "韓國"),
+    ("068270", "068270.KS", "Celltrion 賽特瑞恩", "韓國"),
+    ("247540", "247540.KQ", "Ecopro BM", "韓國"),
+
+    # 英國
+    ("HSBA", "HSBA.L", "HSBC Holdings 匯豐控股", "英國"),
+    ("SHEL", "SHEL.L", "Shell 殼牌", "英國"),
+    ("BP", "BP.L", "BP", "英國"),
+    ("AZN", "AZN.L", "AstraZeneca 阿斯特捷利康", "英國"),
+    ("GSK", "GSK.L", "GSK 葛蘭素史克", "英國"),
+    ("ULVR", "ULVR.L", "Unilever 聯合利華", "英國"),
+    ("RIO", "RIO.L", "Rio Tinto 力拓", "英國"),
+
+    # 德國
+    ("SAP", "SAP.DE", "SAP", "德國"),
+    ("SIE", "SIE.DE", "Siemens 西門子", "德國"),
+    ("ALV", "ALV.DE", "Allianz 安聯", "德國"),
+    ("BMW", "BMW.DE", "BMW", "德國"),
+    ("MBG", "MBG.DE", "Mercedes-Benz Group", "德國"),
+    ("VOW3", "VOW3.DE", "Volkswagen 福斯汽車", "德國"),
+    ("DTE", "DTE.DE", "Deutsche Telekom 德國電信", "德國"),
+    ("BAS", "BAS.DE", "BASF 巴斯夫", "德國"),
+
+    # 法國
+    ("MC", "MC.PA", "LVMH", "法國"),
+    ("OR", "OR.PA", "L'Oreal 萊雅", "法國"),
+    ("AIR", "AIR.PA", "Airbus 空中巴士", "法國"),
+    ("TTE", "TTE.PA", "TotalEnergies 道達爾能源", "法國"),
+    ("SAN", "SAN.PA", "Sanofi 賽諾菲", "法國"),
+    ("BNP", "BNP.PA", "BNP Paribas 法國巴黎銀行", "法國"),
+    ("AI", "AI.PA", "Air Liquide 液化空氣", "法國"),
+
+    # 荷蘭 / 瑞士 / 義大利 / 西班牙
+    ("ASML", "ASML.AS", "ASML Holding", "荷蘭"),
+    ("ADYEN", "ADYEN.AS", "Adyen", "荷蘭"),
+    ("INGA", "INGA.AS", "ING Group 荷蘭國際集團", "荷蘭"),
+    ("NESN", "NESN.SW", "Nestle 雀巢", "瑞士"),
+    ("NOVN", "NOVN.SW", "Novartis 諾華", "瑞士"),
+    ("ROG", "ROG.SW", "Roche 羅氏", "瑞士"),
+    ("UBSG", "UBSG.SW", "UBS 瑞銀", "瑞士"),
+    ("ZURN", "ZURN.SW", "Zurich Insurance 蘇黎世保險", "瑞士"),
+    ("ENEL", "ENEL.MI", "Enel 義大利國家電力", "義大利"),
+    ("ENI", "ENI.MI", "Eni 義大利埃尼", "義大利"),
+    ("ISP", "ISP.MI", "Intesa Sanpaolo 義大利聯合聖保羅銀行", "義大利"),
+    ("SAN", "SAN.MC", "Banco Santander 桑坦德銀行", "西班牙"),
+    ("BBVA", "BBVA.MC", "BBVA 西班牙對外銀行", "西班牙"),
+    ("ITX", "ITX.MC", "Inditex", "西班牙"),
+
+    # 國際 ETF
+    ("EWJ", "EWJ", "iShares MSCI Japan ETF", "日本ETF"),
+    ("EWY", "EWY", "iShares MSCI South Korea ETF", "韓國ETF"),
+    ("VGK", "VGK", "Vanguard FTSE Europe ETF", "歐洲ETF"),
+    ("FEZ", "FEZ", "SPDR EURO STOXX 50 ETF", "歐洲ETF"),
+]
+
+STOCK_DB.extend(INTERNATIONAL_STOCKS)
+
+MARKET_OPTIONS = ["全部市場", "台股", "美股", "日本", "韓國", "歐洲"]
+MARKET_GROUPS = {
+    "全部市場": None,
+    "台股": {"上市", "上櫃", "ETF"},
+    "美股": {"美股", "美股ETF"},
+    "日本": {"日本", "日本ETF"},
+    "韓國": {"韓國", "韓國ETF"},
+    "歐洲": {"英國", "德國", "法國", "荷蘭", "瑞士", "義大利", "西班牙", "歐洲ETF"},
+}
+
 # 去除重複(同代號同市場只留一筆)
 _seen = set()
 _deduped = []
@@ -269,7 +363,7 @@ for row in STOCK_DB:
 STOCK_DB = _deduped
 
 
-def search_stocks(query: str, limit: int = 10):
+def search_stocks(query: str, limit: int = 10, market_filter: str = "全部市場"):
     """
     依輸入字串搜尋股票資料庫。
     支援:代號開頭比對(例如 "23" 會比對出 2330、2317、2327...)、
@@ -283,15 +377,23 @@ def search_stocks(query: str, limit: int = 10):
         return []
 
     q_lower = q.lower()
+    allowed_markets = MARKET_GROUPS.get(market_filter)
     matched = []
     for code, yf_code, name, market in STOCK_DB:
+        if allowed_markets is not None and market not in allowed_markets:
+            continue
         code_lower = code.lower()
+        yf_code_lower = yf_code.lower()
         name_lower = name.lower()
         if code_lower.startswith(q_lower):
+            rank = 0
+        elif yf_code_lower.startswith(q_lower):
             rank = 0
         elif name_lower.startswith(q_lower):
             rank = 1
         elif q_lower in code_lower:
+            rank = 2
+        elif q_lower in yf_code_lower:
             rank = 2
         elif q_lower in name_lower:
             rank = 3

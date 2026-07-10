@@ -154,6 +154,8 @@ def build_report(
         f"<b>買入 {recommendation['buy_pct']}%　觀望 {recommendation['hold_pct']}%　"
         f"賣出 {recommendation['sell_pct']}%</b><br>"
         f"<sub>技術面分數 {recommendation['technical_score']}　"
+        f"K線分數 {recommendation.get('kline_score', 0)}　"
+        f"籌碼分數 {recommendation.get('chip_score', 0)}　"
         f"ML分數 {recommendation['ml_score']}　新聞面分數 {recommendation['news_score']}　"
         f"綜合分數 {recommendation['final_score']}</sub>"
     )

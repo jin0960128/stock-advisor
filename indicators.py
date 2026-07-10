@@ -45,6 +45,35 @@ def bollinger_bands(series: pd.Series, window: int = 20, num_std: float = 2.0):
     return upper, mid, lower
 
 
+def on_balance_volume(close: pd.Series, volume: pd.Series) -> pd.Series:
+    direction = np.sign(close.diff()).fillna(0)
+    return (direction * volume.fillna(0)).cumsum()
+
+
+def money_flow_index(high: pd.Series, low: pd.Series, close: pd.Series,
+                     volume: pd.Series, window: int = 14) -> pd.Series:
+    typical_price = (high + low + close) / 3
+    money_flow = typical_price * volume
+    direction = np.sign(typical_price.diff()).fillna(0)
+
+    positive_flow = money_flow.where(direction > 0, 0.0)
+    negative_flow = money_flow.where(direction < 0, 0.0)
+    positive_sum = positive_flow.rolling(window=window, min_periods=window).sum()
+    negative_sum = negative_flow.rolling(window=window, min_periods=window).sum()
+
+    money_ratio = positive_sum / negative_sum.replace(0, np.nan)
+    mfi = 100 - (100 / (1 + money_ratio))
+    return mfi.fillna(50)
+
+
+def accumulation_distribution(high: pd.Series, low: pd.Series, close: pd.Series,
+                              volume: pd.Series) -> pd.Series:
+    price_range = (high - low).replace(0, np.nan)
+    money_flow_multiplier = ((close - low) - (high - close)) / price_range
+    money_flow_multiplier = money_flow_multiplier.fillna(0)
+    return (money_flow_multiplier * volume.fillna(0)).cumsum()
+
+
 def add_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """
     輸入含有 Open/High/Low/Close/Volume 欄位的 DataFrame,
@@ -71,10 +100,22 @@ def add_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
     out["BB_mid"] = mid
     out["BB_lower"] = lower
 
-    out["Volume_MA_20"] = sma(out["Volume"], 20)
-
     # 每日報酬率 / 波動率,常拿來當 ML 特徵
     out["Return_1d"] = close.pct_change()
     out["Volatility_10d"] = out["Return_1d"].rolling(10).std()
+
+    out["Volume_MA_20"] = sma(out["Volume"], 20)
+    out["Volume_Ratio_20"] = out["Volume"] / out["Volume_MA_20"].replace(0, np.nan)
+
+    out["OBV"] = on_balance_volume(close, out["Volume"])
+    out["OBV_10d_change"] = out["OBV"].diff(10)
+    out["MFI_14"] = money_flow_index(out["High"], out["Low"], close, out["Volume"], 14)
+    out["ADL"] = accumulation_distribution(out["High"], out["Low"], close, out["Volume"])
+    out["ADL_10d_change"] = out["ADL"].diff(10)
+    out["VPT"] = (out["Return_1d"].fillna(0) * out["Volume"].fillna(0)).cumsum()
+    out["VPT_10d_change"] = out["VPT"].diff(10)
+
+    out["HL_Range_Pct"] = (out["High"] - out["Low"]) / close.replace(0, np.nan)
+    out["Candle_Body_Pct"] = (out["Close"] - out["Open"]) / out["Open"].replace(0, np.nan)
 
     return out

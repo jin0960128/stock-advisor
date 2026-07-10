@@ -18,12 +18,11 @@ from streamlit_searchbox import st_searchbox
 
 import config
 import storage
-from stock_db import search_stocks
+from stock_db import MARKET_OPTIONS, search_stocks
 from indicators import add_all_indicators
-from model import build_dataset, time_series_split, train_direction_model, \
-    evaluate_model, predict_next_day
+from model import predict_horizons
 from news import analyze_news_sentiment
-from decision import technical_score, ml_score, build_recommendation
+from decision import technical_score, ml_score, build_recommendation, candlestick_score, chip_score
 from report import build_figure
 
 warnings.filterwarnings("ignore")
@@ -38,7 +37,7 @@ tab_analyze, tab_update, tab_stats, tab_history = st.tabs(
 )
 
 
-def _stock_search_options(searchterm: str):
+def _stock_search_options(searchterm: str, market_filter: str = "全部市場"):
     """
     給 st_searchbox 用的搜尋函式。
     輸入部分代號或名稱(例如 "23"、"台積"、"aapl"),
@@ -47,7 +46,7 @@ def _stock_search_options(searchterm: str):
     """
     if not searchterm:
         return []
-    results = search_stocks(searchterm, limit=10)
+    results = search_stocks(searchterm, limit=10, market_filter=market_filter)
     return [
         (f"{code}　{name}　［{market}］", yf_code)
         for code, yf_code, name, market in results
@@ -56,13 +55,18 @@ def _stock_search_options(searchterm: str):
 
 # ============ 分析頁 ============
 with tab_analyze:
-    col1, col2, col3 = st.columns([2, 1, 1])
+    col_market, col1, col2, col3 = st.columns([1, 2, 1, 1])
+    with col_market:
+        market_filter = st.selectbox("市場", MARKET_OPTIONS, index=0)
     with col1:
+        def _market_stock_options(searchterm: str):
+            return _stock_search_options(searchterm, market_filter=market_filter)
+
         ticker = st_searchbox(
-            _stock_search_options,
-            placeholder="輸入代號或名稱,例如 23、台積電、AAPL...",
+            _market_stock_options,
+            placeholder="輸入代號或名稱,例如 23、台積電、AAPL、7203...",
             label="股票代號",
-            key="ticker_searchbox",
+            key=f"ticker_searchbox_{market_filter}",
             clear_on_submit=False,
             rerun_on_update=True,
         )
@@ -95,6 +99,30 @@ with tab_analyze:
             show_macd = st.checkbox("MACD 指標", value=True)
         st.caption("💡 圖表下方也有時間軸滑軌與快速按鈕(6個月/1年/5年/10年/全部),可自由縮放查看不同區間。")
 
+    with st.expander("💰 持有紀錄手續費內扣設定", expanded=False):
+        fee_deducted = st.checkbox(
+            "回顧報酬率內扣交易成本",
+            value=config.DEFAULT_FEE_DEDUCTED,
+            help="產生持有紀錄時保存此設定,到期回顧會用同一組費率計算扣費後報酬。",
+        )
+        f1, f2, f3 = st.columns(3)
+        with f1:
+            buy_fee_rate = st.number_input(
+                "買進手續費(%)", min_value=0.0, max_value=5.0,
+                value=float(config.DEFAULT_BUY_FEE_RATE), step=0.001, format="%.4f",
+            )
+        with f2:
+            sell_fee_rate = st.number_input(
+                "賣出手續費(%)", min_value=0.0, max_value=5.0,
+                value=float(config.DEFAULT_SELL_FEE_RATE), step=0.001, format="%.4f",
+            )
+        with f3:
+            sell_tax_rate = st.number_input(
+                "賣出交易稅/其他成本(%)", min_value=0.0, max_value=5.0,
+                value=float(config.DEFAULT_SELL_TAX_RATE), step=0.001, format="%.4f",
+            )
+        st.caption("費率會寫入本次建議紀錄；日股、韓股、歐股可依券商實際費率調整。")
+
     analyze_clicked = st.button("開始分析", type="primary", disabled=not ticker)
 
     if analyze_clicked:
@@ -112,14 +140,17 @@ with tab_analyze:
                 df = add_all_indicators(raw)
 
             tech_score_val = technical_score(df)
+            kline_score_val, kline_signals = candlestick_score(df)
+            chip_score_val, chip_signals = chip_score(df)
 
-            with st.spinner("訓練機器學習模型..."):
-                X, y, _ = build_dataset(df)
-                if len(X) >= 60:
-                    X_train, X_test, y_train, y_test = time_series_split(X, y, test_ratio=0.2)
-                    model = train_direction_model(X_train, y_train)
-                    acc, _, _ = evaluate_model(model, X_test, y_test)
-                    up_prob = predict_next_day(model, X.iloc[[-1]])
+            with st.spinner("訓練多期間機器學習模型..."):
+                horizon_predictions = predict_horizons(
+                    df, horizons=config.PREDICTION_HORIZONS.keys()
+                )
+                day1_prediction = horizon_predictions.get(1, {})
+                if day1_prediction.get("up_probability") is not None:
+                    up_prob = day1_prediction["up_probability"]
+                    acc = day1_prediction["accuracy"]
                     ml_score_val = ml_score(up_prob)
                 else:
                     acc, up_prob = None, None
@@ -130,12 +161,17 @@ with tab_analyze:
 
             strategy = config.STRATEGIES[strategy_name]
             recommendation = build_recommendation(
-                tech_score_val, ml_score_val, news_score_val, strategy
+                tech_score_val, ml_score_val, news_score_val, strategy,
+                kline_score_val=kline_score_val, chip_score_val=chip_score_val,
             )
 
             latest_price = float(df["Close"].iloc[-1])
             record_id = storage.save_recommendation(
                 ticker, strategy_name, latest_price, recommendation, strategy["holding_days"],
+                fee_deducted=fee_deducted,
+                buy_fee_rate=buy_fee_rate,
+                sell_fee_rate=sell_fee_rate,
+                sell_tax_rate=sell_tax_rate,
             )
 
             st.success(
@@ -154,11 +190,37 @@ with tab_analyze:
                 f"{action_emoji.get(recommendation['top_action'], '')} "
                 f"**最可能操作: {recommendation['top_action']}**\n\n"
                 f"技術面 `{recommendation['technical_score']:+.2f}` ／ "
+                f"K線 `{recommendation['kline_score']:+.2f}` ／ "
+                f"籌碼 `{recommendation['chip_score']:+.2f}` ／ "
                 f"ML面 `{recommendation['ml_score']:+.2f}` "
                 + (f"(隔日上漲機率 {up_prob:.1%}, 模型歷史準確率 {acc:.1%})" if up_prob is not None else "(資料不足,略過)")
                 + f" ／ 新聞面 `{recommendation['news_score']:+.2f}` ／ "
                 f"綜合分數 `{recommendation['final_score']:+.2f}`"
             )
+
+            st.subheader("多期間預測")
+            pred_cols = st.columns(len(config.PREDICTION_HORIZONS))
+            for col, (horizon, label) in zip(pred_cols, config.PREDICTION_HORIZONS.items()):
+                pred = horizon_predictions.get(horizon, {})
+                prob = pred.get("up_probability")
+                accuracy = pred.get("accuracy")
+                with col:
+                    if prob is None:
+                        st.metric(f"{label}上漲機率", "N/A")
+                        st.caption(pred.get("reason") or "資料不足")
+                    else:
+                        delta = f"測試準確率 {accuracy:.1%}" if accuracy is not None else None
+                        st.metric(f"{label}上漲機率", f"{prob:.1%}", delta=delta)
+
+            s1, s2 = st.columns(2)
+            with s1:
+                st.subheader("K線訊號")
+                for signal in kline_signals[:5]:
+                    st.write(f"- {signal}")
+            with s2:
+                st.subheader("籌碼/量價訊號")
+                for signal in chip_signals[:5]:
+                    st.write(f"- {signal}")
 
             # --- 圖表 ---
             fig = build_figure(
@@ -206,13 +268,14 @@ with tab_update:
                     recent = yf.download(rec["ticker"], period="5d", progress=False, auto_adjust=True)
                     if not recent.empty:
                         latest_price = float(recent["Close"].iloc[-1])
-                        storage.update_outcome(rec["id"], latest_price)
-                        actual_return = (
-                            (latest_price - rec["price_at_reco"]) / rec["price_at_reco"] * 100
-                        )
+                        returns = storage.update_outcome(rec["id"], latest_price)
                         results.append({
                             "編號": rec["id"], "代號": rec["ticker"], "策略": rec["strategy"],
-                            "建議": rec["top_action"], "實際報酬%": round(actual_return, 2),
+                            "建議": rec["top_action"],
+                            "價格漲跌%": round(returns["gross_price_return"], 2),
+                            "方向毛報酬%": round(returns["action_return"], 2),
+                            "扣費後報酬%": round(returns["net_return"], 2),
+                            "扣除費率%": round(returns["total_fee_rate"], 4),
                         })
                 except Exception as e:
                     st.warning(f"回顧 {rec['ticker']} #{rec['id']} 時發生問題: {e}")
@@ -237,16 +300,36 @@ with tab_stats:
             rows.append({
                 "策略": name,
                 "已回顧建議數": s["total_recommendations"],
-                "方向勝率%": s["directional_win_rate_pct"],
-                "平均實際報酬%": s["avg_actual_return_pct"],
+                "有方向建議數": s["directional_recommendations"],
+                "長期方向勝率%": s["directional_win_rate_pct"],
+                "平均價格漲跌%": s["avg_price_return_pct"],
+                "平均方向毛報酬%": s["avg_action_return_pct"],
+                "平均扣費後報酬%": s["avg_net_return_pct"],
             })
         stats_df = pd.DataFrame(rows).sort_values(
-            "平均實際報酬%", ascending=False, na_position="last"
+            "平均扣費後報酬%", ascending=False, na_position="last"
         )
         st.dataframe(stats_df, use_container_width=True)
 
         best = stats_df.iloc[0]
-        st.success(f"🏆 目前平均報酬率最優的策略: **{best['策略']}**")
+        st.success(f"🏆 目前平均扣費後報酬率最優的策略: **{best['策略']}**")
+
+        st.subheader("長期預測準確率比較")
+        acc_strategy = pd.DataFrame(storage.get_accuracy_breakdown("strategy"))
+        acc_action = pd.DataFrame(storage.get_accuracy_breakdown("top_action"))
+        acc_ticker = pd.DataFrame(storage.get_accuracy_breakdown("ticker", min_count=2))
+        a1, a2 = st.columns(2)
+        with a1:
+            st.write("依策略")
+            st.dataframe(acc_strategy, use_container_width=True)
+        with a2:
+            st.write("依建議動作")
+            st.dataframe(acc_action, use_container_width=True)
+        st.write("依股票(至少 2 筆有方向紀錄)")
+        if acc_ticker.empty:
+            st.info("同一股票累積 2 筆以上已回顧買入/賣出紀錄後,會在這裡比較。")
+        else:
+            st.dataframe(acc_ticker, use_container_width=True)
 
 
 # ============ 歷史紀錄頁 ============

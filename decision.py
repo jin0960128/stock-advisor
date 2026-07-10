@@ -53,16 +53,156 @@ def ml_score(up_probability: float) -> float:
     return (up_probability - 0.5) * 2
 
 
-def combine_signals(tech_score: float, ml_score_val: float, news_score: float, strategy: dict) -> float:
-    """依照策略權重,把三種訊號加權平均成一個 -1~1 的綜合分數。"""
-    w_tech = strategy["technical_weight"]
-    w_ml = strategy["ml_weight"]
-    w_news = strategy["news_weight"]
-    total_w = w_tech + w_ml + w_news
+def _clip_score(value: float) -> float:
+    return max(-1.0, min(1.0, value))
+
+
+def _safe_float(value, default=None):
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return default
+    if math.isnan(numeric):
+        return default
+    return numeric
+
+
+def candlestick_score(df):
+    """
+    用最近 K 棒型態估計短線偏多/偏空分數。
+    回傳 (分數, 訊號列表),分數範圍 -1~+1。
+    """
+    if len(df) < 3:
+        return 0.0, ["K線資料不足"]
+
+    latest = df.iloc[-1]
+    prev = df.iloc[-2]
+    recent = df.tail(3)
+    signals = []
+    scores = []
+
+    open_price = _safe_float(latest.get("Open"))
+    high = _safe_float(latest.get("High"))
+    low = _safe_float(latest.get("Low"))
+    close = _safe_float(latest.get("Close"))
+    prev_open = _safe_float(prev.get("Open"))
+    prev_close = _safe_float(prev.get("Close"))
+
+    if None not in [open_price, high, low, close, prev_open, prev_close]:
+        candle_range = max(high - low, 1e-9)
+        body = close - open_price
+        body_abs = abs(body)
+        upper_shadow = high - max(open_price, close)
+        lower_shadow = min(open_price, close) - low
+
+        if body_abs / candle_range < 0.1:
+            signals.append("十字線: 多空拉鋸")
+            scores.append(0.0)
+        if lower_shadow > body_abs * 2 and upper_shadow < body_abs * 1.2:
+            signals.append("錘子線: 下檔承接偏多")
+            scores.append(0.55)
+        if upper_shadow > body_abs * 2 and lower_shadow < body_abs * 1.2:
+            signals.append("長上影線: 上檔賣壓偏空")
+            scores.append(-0.55)
+
+        prev_bearish = prev_close < prev_open
+        prev_bullish = prev_close > prev_open
+        bullish = close > open_price
+        bearish = close < open_price
+        if prev_bearish and bullish and close >= prev_open and open_price <= prev_close:
+            signals.append("多方吞噬: K線反轉偏多")
+            scores.append(0.85)
+        if prev_bullish and bearish and open_price >= prev_close and close <= prev_open:
+            signals.append("空方吞噬: K線反轉偏空")
+            scores.append(-0.85)
+
+    closes = recent["Close"].tolist()
+    opens = recent["Open"].tolist()
+    if len(closes) == 3 and all(_safe_float(v) is not None for v in closes + opens):
+        if closes[0] < closes[1] < closes[2] and all(c > o for c, o in zip(closes, opens)):
+            signals.append("三日連陽: 短線動能偏多")
+            scores.append(0.45)
+        elif closes[0] > closes[1] > closes[2] and all(c < o for c, o in zip(closes, opens)):
+            signals.append("三日連陰: 短線動能偏空")
+            scores.append(-0.45)
+
+    if not scores:
+        return 0.0, ["未偵測到明確K線型態"]
+    return round(_clip_score(sum(scores) / len(scores)), 3), signals
+
+
+def chip_score(df):
+    """
+    用 OHLCV 推估籌碼/量價面。若未接交易所三大法人資料,
+    先以量比、MFI、OBV、ADL、VPT 做可跨市場使用的代理指標。
+    """
+    if df.empty:
+        return 0.0, ["籌碼資料不足"]
+
+    latest = df.iloc[-1]
+    signals = []
+    scores = []
+
+    close = _safe_float(latest.get("Close"))
+    prev_close = _safe_float(df["Close"].iloc[-2] if len(df) >= 2 else None)
+    volume_ratio = _safe_float(latest.get("Volume_Ratio_20"))
+    mfi = _safe_float(latest.get("MFI_14"))
+    obv_change = _safe_float(latest.get("OBV_10d_change"))
+    adl_change = _safe_float(latest.get("ADL_10d_change"))
+    vpt_change = _safe_float(latest.get("VPT_10d_change"))
+
+    if None not in [close, prev_close, volume_ratio] and volume_ratio >= 1.5:
+        if close > prev_close:
+            signals.append(f"放量上漲: 量比 {volume_ratio:.2f}")
+            scores.append(0.55)
+        elif close < prev_close:
+            signals.append(f"放量下跌: 量比 {volume_ratio:.2f}")
+            scores.append(-0.55)
+
+    if mfi is not None:
+        if mfi < 20:
+            signals.append(f"MFI {mfi:.1f}: 資金流低檔反彈機會")
+            scores.append(0.35)
+        elif mfi > 80:
+            signals.append(f"MFI {mfi:.1f}: 資金流過熱")
+            scores.append(-0.35)
+        else:
+            scores.append((mfi - 50) / 50 * 0.35)
+
+    for label, change in [
+        ("OBV", obv_change),
+        ("ADL", adl_change),
+        ("VPT", vpt_change),
+    ]:
+        if change is None:
+            continue
+        if change > 0:
+            signals.append(f"{label} 10日走升")
+            scores.append(0.30)
+        elif change < 0:
+            signals.append(f"{label} 10日走弱")
+            scores.append(-0.30)
+
+    if not scores:
+        return 0.0, ["未偵測到明確籌碼訊號"]
+    return round(_clip_score(sum(scores) / len(scores)), 3), signals[:5]
+
+
+def combine_signals(tech_score: float, ml_score_val: float, news_score: float, strategy: dict,
+                    kline_score_val: float = 0.0, chip_score_val: float = 0.0) -> float:
+    """依照策略權重,把各種訊號加權平均成一個 -1~1 的綜合分數。"""
+    signals = [
+        (tech_score, strategy.get("technical_weight", 0.0)),
+        (kline_score_val, strategy.get("kline_weight", 0.0)),
+        (chip_score_val, strategy.get("chip_weight", 0.0)),
+        (ml_score_val, strategy.get("ml_weight", 0.0)),
+        (news_score, strategy.get("news_weight", 0.0)),
+    ]
+    total_w = sum(weight for _, weight in signals)
     if total_w == 0:
         return 0.0
-    combined = (tech_score * w_tech + ml_score_val * w_ml + news_score * w_news) / total_w
-    return max(-1.0, min(1.0, combined))
+    combined = sum(score * weight for score, weight in signals) / total_w
+    return _clip_score(combined)
 
 
 def score_to_percentages(final_score: float):
@@ -90,12 +230,18 @@ def score_to_percentages(final_score: float):
     return percentages
 
 
-def build_recommendation(tech_score_val: float, ml_score_val: float, news_score_val: float, strategy: dict):
-    final_score = combine_signals(tech_score_val, ml_score_val, news_score_val, strategy)
+def build_recommendation(tech_score_val: float, ml_score_val: float, news_score_val: float, strategy: dict,
+                         kline_score_val: float = 0.0, chip_score_val: float = 0.0):
+    final_score = combine_signals(
+        tech_score_val, ml_score_val, news_score_val, strategy,
+        kline_score_val=kline_score_val, chip_score_val=chip_score_val,
+    )
     percentages = score_to_percentages(final_score)
     top_action = max(percentages, key=percentages.get)
     return {
         "technical_score": round(tech_score_val, 3),
+        "kline_score": round(kline_score_val, 3),
+        "chip_score": round(chip_score_val, 3),
         "ml_score": round(ml_score_val, 3),
         "news_score": round(news_score_val, 3),
         "final_score": round(final_score, 3),
