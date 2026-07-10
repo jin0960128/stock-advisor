@@ -9,16 +9,27 @@ app.py
 執行後會自動在瀏覽器打開一個網頁,不需要碰終端機指令,
 輸入股票代號、按按鈕就能看到分析結果、K線圖、新聞與建議。
 """
+import html
 import warnings
 
 import pandas as pd
 import streamlit as st
 import yfinance as yf
-from streamlit_searchbox import st_searchbox
 
 import config
 import storage
-from stock_db import MARKET_OPTIONS, search_stocks
+try:
+    from stock_db import MARKET_OPTIONS, list_stocks
+except ImportError:
+    from stock_db import MARKET_GROUPS, MARKET_OPTIONS, STOCK_DB
+
+    def list_stocks(market_filter: str = "全部市場"):
+        allowed_markets = MARKET_GROUPS.get(market_filter)
+        rows = [
+            row for row in STOCK_DB
+            if allowed_markets is None or row[3] in allowed_markets
+        ]
+        return sorted(rows, key=lambda row: (row[3], row[0]))
 from indicators import add_all_indicators
 from model import predict_horizons
 from news import analyze_news_sentiment
@@ -29,28 +40,486 @@ warnings.filterwarnings("ignore")
 
 st.set_page_config(page_title="股票分析建議系統", page_icon="📈", layout="wide")
 
-st.title("股票分析 + 決策建議系統")
-st.caption("⚠️ 本工具僅供學習與研究參考,任何建議皆不構成投資建議,請務必自行判斷風險。")
+
+def _inject_theme():
+    st.markdown(
+        """
+        <style>
+        :root {
+            --bg: #f5f7fb;
+            --surface: #ffffff;
+            --surface-muted: #f8fafc;
+            --border: #d9e2ec;
+            --text: #17212b;
+            --muted: #667085;
+            --teal: #17717b;
+            --teal-soft: #e8f5f6;
+            --green: #14804a;
+            --green-soft: #e7f6ee;
+            --red: #b42318;
+            --red-soft: #fdeceb;
+            --amber: #b7791f;
+            --amber-soft: #fff6db;
+            --blue: #2458a6;
+            --blue-soft: #edf4ff;
+        }
+
+        .stApp {
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .block-container {
+            max-width: 1280px;
+            padding-top: 1.2rem;
+            padding-bottom: 2rem;
+        }
+
+        .app-header {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin-bottom: 18px;
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+        }
+
+        .app-header__row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 18px;
+        }
+
+        .app-eyebrow {
+            color: var(--teal);
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .app-title {
+            color: var(--text);
+            font-size: 1.85rem;
+            font-weight: 800;
+            margin: 0;
+            letter-spacing: 0;
+            line-height: 1.2;
+        }
+
+        .app-note {
+            color: var(--muted);
+            font-size: 0.94rem;
+            margin-top: 8px;
+            margin-bottom: 0;
+            line-height: 1.55;
+        }
+
+        .app-status {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
+            min-width: 220px;
+        }
+
+        .app-status span,
+        .score-pill,
+        .signal-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--surface-muted);
+            color: var(--text);
+            font-size: 0.84rem;
+            font-weight: 650;
+            padding: 7px 10px;
+            white-space: nowrap;
+        }
+
+        div[data-testid="stTabs"] button {
+            border-radius: 8px 8px 0 0;
+            padding: 10px 18px;
+            font-weight: 700;
+        }
+
+        div[data-testid="stTabs"] button[aria-selected="true"] {
+            color: var(--teal);
+            border-bottom-color: var(--teal);
+        }
+
+        div[data-testid="stMetric"] {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px 16px;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+        }
+
+        div[data-testid="stMetricLabel"] p {
+            color: var(--muted);
+            font-size: 0.86rem;
+            font-weight: 700;
+        }
+
+        div[data-testid="stMetricValue"] {
+            color: var(--text);
+            font-weight: 800;
+        }
+
+        div[data-testid="stSelectbox"] [data-baseweb="select"] > div,
+        div[data-testid="stTextInput"] input,
+        div[data-testid="stNumberInput"] input {
+            min-height: 42px;
+            border-radius: 8px;
+            border-color: var(--border);
+            background: var(--surface-muted);
+        }
+
+        div[data-testid="stSelectbox"] [data-baseweb="select"] input {
+            background: transparent;
+        }
+
+        div[data-testid="stSelectbox"] [data-baseweb="select"] > div:hover,
+        div[data-testid="stTextInput"] input:hover,
+        div[data-testid="stNumberInput"] input:hover {
+            border-color: #a9b8c9;
+        }
+
+        .stButton > button {
+            border-radius: 8px;
+            border: 1px solid var(--teal);
+            background: var(--teal);
+            color: #fff;
+            font-weight: 750;
+            min-height: 42px;
+            box-shadow: 0 8px 18px rgba(23, 113, 123, 0.18);
+        }
+
+        .stButton > button:hover {
+            border-color: #125f68;
+            background: #125f68;
+            color: #fff;
+        }
+
+        .stButton > button:disabled {
+            border-color: var(--border);
+            background: #e5e7eb;
+            color: #9ca3af;
+            box-shadow: none;
+        }
+
+        div[data-testid="stAlert"] {
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .section-title {
+            color: var(--text);
+            font-size: 1.08rem;
+            font-weight: 800;
+            margin: 22px 0 10px;
+            letter-spacing: 0;
+        }
+
+        .decision-banner {
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            padding: 16px 18px;
+            margin: 14px 0 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+        }
+
+        .decision-banner.buy {
+            border-left: 5px solid var(--green);
+            background: var(--green-soft);
+        }
+
+        .decision-banner.sell {
+            border-left: 5px solid var(--red);
+            background: var(--red-soft);
+        }
+
+        .decision-banner.hold {
+            border-left: 5px solid var(--amber);
+            background: var(--amber-soft);
+        }
+
+        .decision-kicker {
+            color: var(--muted);
+            font-size: 0.78rem;
+            font-weight: 800;
+            margin-bottom: 2px;
+        }
+
+        .decision-action {
+            color: var(--text);
+            font-size: 1.45rem;
+            font-weight: 850;
+            line-height: 1.2;
+        }
+
+        .decision-meta {
+            color: var(--muted);
+            font-size: 0.9rem;
+            text-align: right;
+        }
+
+        .score-strip {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 10px 0 12px;
+        }
+
+        .score-pill.positive {
+            color: var(--green);
+            border-color: #b7e3cc;
+            background: var(--green-soft);
+        }
+
+        .score-pill.negative {
+            color: var(--red);
+            border-color: #fac7c2;
+            background: var(--red-soft);
+        }
+
+        .score-pill.neutral {
+            color: var(--blue);
+            border-color: #c8daf8;
+            background: var(--blue-soft);
+        }
+
+        .signal-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px 16px;
+            min-height: 142px;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+        }
+
+        .signal-panel__head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .signal-panel__title {
+            font-size: 0.98rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .signal-list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .signal-item {
+            color: var(--text);
+            background: var(--surface-muted);
+            border: 1px solid #edf1f6;
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .news-row {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 14px;
+            margin-bottom: 8px;
+            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.035);
+        }
+
+        .news-row a {
+            color: var(--text);
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .news-row a:hover {
+            color: var(--teal);
+            text-decoration: underline;
+        }
+
+        .news-meta {
+            color: var(--muted);
+            font-size: 0.84rem;
+            margin-top: 4px;
+        }
+
+        .stDataFrame,
+        div[data-testid="stDataFrame"] {
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        @media (max-width: 760px) {
+            .app-header__row,
+            .decision-banner {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .app-status,
+            .decision-meta {
+                justify-content: flex-start;
+                text-align: left;
+            }
+            .app-title {
+                font-size: 1.45rem;
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_header():
+    st.markdown(
+        """
+        <div class="app-header">
+            <div class="app-header__row">
+                <div>
+                    <div class="app-eyebrow">Investment Research Console</div>
+                    <h1 class="app-title">股票分析決策系統</h1>
+                    <p class="app-note">本工具僅供學習與研究參考，任何輸出都不構成投資建議。</p>
+                </div>
+                <div class="app-status">
+                    <span>技術面</span>
+                    <span>K線</span>
+                    <span>籌碼</span>
+                    <span>ML</span>
+                    <span>新聞</span>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _tone(score: float) -> str:
+    if score >= 0.2:
+        return "positive"
+    if score <= -0.2:
+        return "negative"
+    return "neutral"
+
+
+def _score_pill(label: str, score: float) -> str:
+    return (
+        f'<span class="score-pill {_tone(score)}">'
+        f'{html.escape(label)} <strong>{score:+.2f}</strong>'
+        "</span>"
+    )
+
+
+def _render_score_strip(recommendation: dict):
+    pills = [
+        _score_pill("技術面", recommendation["technical_score"]),
+        _score_pill("K線", recommendation["kline_score"]),
+        _score_pill("籌碼", recommendation["chip_score"]),
+        _score_pill("ML", recommendation["ml_score"]),
+        _score_pill("新聞", recommendation["news_score"]),
+        _score_pill("綜合", recommendation["final_score"]),
+    ]
+    st.markdown(f'<div class="score-strip">{"".join(pills)}</div>', unsafe_allow_html=True)
+
+
+def _render_decision_banner(recommendation: dict, strategy_label: str, holding_days: int):
+    action_class = {
+        "買入": "buy",
+        "賣出": "sell",
+        "觀望": "hold",
+    }.get(recommendation["top_action"], "hold")
+    st.markdown(
+        f"""
+        <div class="decision-banner {action_class}">
+            <div>
+                <div class="decision-kicker">最可能操作</div>
+                <div class="decision-action">{html.escape(recommendation["top_action"])}</div>
+            </div>
+            <div class="decision-meta">
+                {html.escape(strategy_label)} · 持有 {holding_days} 個交易日<br>
+                綜合分數 {recommendation["final_score"]:+.2f}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_section_title(title: str):
+    st.markdown(f'<div class="section-title">{html.escape(title)}</div>', unsafe_allow_html=True)
+
+
+def _render_signal_panel(title: str, score: float, signals: list):
+    signal_items = "".join(
+        f'<div class="signal-item">{html.escape(str(signal))}</div>'
+        for signal in signals[:5]
+    )
+    st.markdown(
+        f"""
+        <div class="signal-panel">
+            <div class="signal-panel__head">
+                <div class="signal-panel__title">{html.escape(title)}</div>
+                <span class="signal-tag">{score:+.2f}</span>
+            </div>
+            <div class="signal-list">{signal_items}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_news_item(item: dict):
+    score = item.get("score", 0)
+    tone = _tone(score)
+    title = html.escape(str(item.get("title", "未命名新聞")))
+    link = html.escape(str(item.get("link", "#")))
+    publisher = html.escape(str(item.get("publisher", "")))
+    st.markdown(
+        f"""
+        <div class="news-row">
+            <div>
+                <span class="score-pill {tone}">{score:+.2f}</span>
+                <a href="{link}" target="_blank">{title}</a>
+            </div>
+            <div class="news-meta">{publisher}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+_inject_theme()
+_render_header()
 
 tab_analyze, tab_update, tab_stats, tab_history = st.tabs(
     ["🔍 分析", "🔄 回顧更新", "📊 績效統計", "🕘 歷史紀錄"]
 )
 
 
-def _stock_search_options(searchterm: str, market_filter: str = "全部市場"):
-    """
-    給 st_searchbox 用的搜尋函式。
-    輸入部分代號或名稱(例如 "23"、"台積"、"aapl"),
-    回傳給下拉選單顯示的候選清單。
-    每個候選項是 (顯示文字, 實際回傳值) 的 tuple。
-    """
-    if not searchterm:
-        return []
-    results = search_stocks(searchterm, limit=10, market_filter=market_filter)
-    return [
-        (f"{code}　{name}　［{market}］", yf_code)
-        for code, yf_code, name, market in results
-    ]
+def _stock_label(stock: tuple) -> str:
+    if stock is None:
+        return ""
+    code, yf_code, name, market = stock
+    return f"{code}　{name}　［{market}］"
 
 
 def _strategy_label(strategy_name: str) -> str:
@@ -59,22 +528,20 @@ def _strategy_label(strategy_name: str) -> str:
 
 # ============ 分析頁 ============
 with tab_analyze:
+    _render_section_title("分析條件")
     col_market, col1, col2, col3 = st.columns([1, 2, 1, 1])
     with col_market:
         market_filter = st.selectbox("市場", MARKET_OPTIONS, index=0)
     with col1:
-        def _market_stock_options(searchterm: str):
-            return _stock_search_options(searchterm, market_filter=market_filter)
-
-        ticker = st_searchbox(
-            _market_stock_options,
-            placeholder="輸入代號或名稱,例如 23、台積電、AAPL、7203...",
-            label="股票代號",
-            key=f"ticker_searchbox_{market_filter}",
-            clear_on_submit=False,
-            rerun_on_update=True,
+        stock_option = st.selectbox(
+            "股票代碼",
+            list_stocks(market_filter),
+            index=None,
+            placeholder="選擇或搜尋股票代碼",
+            format_func=_stock_label,
+            key=f"ticker_select_{market_filter}",
         )
-        ticker = (ticker or "").strip()
+        ticker = stock_option[1] if stock_option else ""
     with col2:
         strategy_name = st.selectbox(
             "使用策略",
@@ -92,7 +559,7 @@ with tab_analyze:
             format_func=lambda p: period_labels.get(p, p),
         )
 
-    with st.expander("🎛️ 圖表顯示設定(勾選要顯示的線條/面板)", expanded=False):
+    with st.expander("圖表顯示設定", expanded=False):
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             show_sma20 = st.checkbox("20日均線", value=True)
@@ -105,9 +572,8 @@ with tab_analyze:
             show_rsi = st.checkbox("RSI 指標", value=True)
         with c4:
             show_macd = st.checkbox("MACD 指標", value=True)
-        st.caption("💡 圖表下方也有時間軸滑軌與快速按鈕(6個月/1年/5年/10年/全部),可自由縮放查看不同區間。")
 
-    with st.expander("💰 持有紀錄手續費內扣設定", expanded=False):
+    with st.expander("持有紀錄手續費內扣設定", expanded=False):
         fee_deducted = st.checkbox(
             "回顧報酬率內扣交易成本",
             value=config.DEFAULT_FEE_DEDUCTED,
@@ -129,7 +595,6 @@ with tab_analyze:
                 "賣出交易稅/其他成本(%)", min_value=0.0, max_value=5.0,
                 value=float(config.DEFAULT_SELL_TAX_RATE), step=0.001, format="%.4f",
             )
-        st.caption("費率會寫入本次建議紀錄；日股、韓股、歐股可依券商實際費率調整。")
 
     analyze_clicked = st.button("開始分析", type="primary", disabled=not ticker)
 
@@ -189,25 +654,16 @@ with tab_analyze:
             )
 
             # --- 建議摘要 ---
+            _render_section_title("建議摘要")
             m1, m2, m3 = st.columns(3)
             m1.metric("買入", f"{recommendation['buy_pct']}%")
             m2.metric("觀望", f"{recommendation['hold_pct']}%")
             m3.metric("賣出", f"{recommendation['sell_pct']}%")
 
-            action_emoji = {"買入": "🟢", "觀望": "⚪", "賣出": "🔴"}
-            st.info(
-                f"{action_emoji.get(recommendation['top_action'], '')} "
-                f"**最可能操作: {recommendation['top_action']}**\n\n"
-                f"技術面 `{recommendation['technical_score']:+.2f}` ／ "
-                f"K線 `{recommendation['kline_score']:+.2f}` ／ "
-                f"籌碼 `{recommendation['chip_score']:+.2f}` ／ "
-                f"ML面 `{recommendation['ml_score']:+.2f}` "
-                + (f"(隔日上漲機率 {up_prob:.1%}, 模型歷史準確率 {acc:.1%})" if up_prob is not None else "(資料不足,略過)")
-                + f" ／ 新聞面 `{recommendation['news_score']:+.2f}` ／ "
-                f"綜合分數 `{recommendation['final_score']:+.2f}`"
-            )
+            _render_decision_banner(recommendation, strategy_label, strategy["holding_days"])
+            _render_score_strip(recommendation)
 
-            st.subheader("多期間預測")
+            _render_section_title("多期間預測")
             pred_cols = st.columns(len(config.PREDICTION_HORIZONS))
             for col, (horizon, label) in zip(pred_cols, config.PREDICTION_HORIZONS.items()):
                 pred = horizon_predictions.get(horizon, {})
@@ -221,17 +677,15 @@ with tab_analyze:
                         delta = f"測試準確率 {accuracy:.1%}" if accuracy is not None else None
                         st.metric(f"{label}上漲機率", f"{prob:.1%}", delta=delta)
 
+            _render_section_title("訊號摘要")
             s1, s2 = st.columns(2)
             with s1:
-                st.subheader("K線訊號")
-                for signal in kline_signals[:5]:
-                    st.write(f"- {signal}")
+                _render_signal_panel("K線訊號", kline_score_val, kline_signals)
             with s2:
-                st.subheader("籌碼/量價訊號")
-                for signal in chip_signals[:5]:
-                    st.write(f"- {signal}")
+                _render_signal_panel("籌碼/量價訊號", chip_score_val, chip_signals)
 
             # --- 圖表 ---
+            _render_section_title("價格圖表")
             fig = build_figure(
                 ticker, df,
                 show_sma20=show_sma20,
@@ -245,16 +699,10 @@ with tab_analyze:
             st.plotly_chart(fig, use_container_width=True)
 
             # --- 新聞列表 ---
-            st.subheader("📰 近期相關新聞與情緒評分")
+            _render_section_title("近期新聞")
             if news_items:
                 for item in news_items:
-                    score = item.get("score", 0)
-                    emoji = "🟢" if score > 0.1 else ("🔴" if score < -0.1 else "⚪")
-                    st.markdown(
-                        f"{emoji} `{score:+.2f}` "
-                        f"[{item['title']}]({item.get('link', '#')}) "
-                        f"— *{item.get('publisher', '')}*"
-                    )
+                    _render_news_item(item)
             else:
                 st.write("目前無法取得相關新聞。")
 
@@ -264,7 +712,7 @@ with tab_analyze:
 
 # ============ 回顧更新頁 ============
 with tab_update:
-    st.write("回顧所有「持有天數已到期」的歷史建議,自動查詢最新股價並計算實際結果。")
+    _render_section_title("回顧更新")
     if st.button("執行回顧更新"):
         pending = storage.get_pending_reviews()
         if not pending:
@@ -298,6 +746,7 @@ with tab_update:
 
 # ============ 績效統計頁 ============
 with tab_stats:
+    _render_section_title("績效統計")
     stats = storage.get_strategy_stats()
     if not stats:
         st.info(
@@ -347,6 +796,7 @@ with tab_stats:
 
 # ============ 歷史紀錄頁 ============
 with tab_history:
+    _render_section_title("歷史紀錄")
     hist_ticker = st.text_input(
         "輸入股票代號查詢(留空看全部)", key="hist_ticker_input"
     ).strip()

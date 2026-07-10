@@ -403,3 +403,13 @@ def search_stocks(query: str, limit: int = 10, market_filter: str = "全部市�
 
     matched.sort(key=lambda x: (x[0], x[1]))
     return [(code, yf_code, name, market) for _, code, yf_code, name, market in matched[:limit]]
+
+
+def list_stocks(market_filter: str = "全部市場"):
+    """回傳指定市場下的股票清單,供原生選單顯示使用。"""
+    allowed_markets = MARKET_GROUPS.get(market_filter)
+    rows = [
+        row for row in STOCK_DB
+        if allowed_markets is None or row[3] in allowed_markets
+    ]
+    return sorted(rows, key=lambda row: (row[3], row[0]))
