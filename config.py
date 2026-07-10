@@ -34,7 +34,12 @@ STRATEGIES = {
 DEFAULT_STRATEGY = "default"
 
 # ============ 資料來源設定 ============
-PRICE_HISTORY_PERIOD = "2y"     # 抓取歷史股價的區間
+PRICE_HISTORY_PERIOD = "10y"    # 抓取歷史股價的區間(預設10年,可在網頁上讓使用者調整)
+PRICE_HISTORY_PERIOD_OPTIONS = ["6mo", "1y", "2y", "5y", "10y", "max"]  # 網頁上可選的區間
+PRICE_HISTORY_PERIOD_LABELS = {
+    "6mo": "近6個月", "1y": "近1年", "2y": "近2年",
+    "5y": "近5年", "10y": "近10年", "max": "全部歷史",
+}
 NEWS_LOOKBACK_COUNT = 10        # 抓取最近幾則新聞來做情緒分析
 
 # ============ 情緒分析設定 ============
