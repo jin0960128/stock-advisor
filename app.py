@@ -55,7 +55,7 @@ def _stock_search_options(searchterm: str):
 
 # ============ 分析頁 ============
 with tab_analyze:
-    col1, col2 = st.columns([2, 1])
+    col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
         ticker = st_searchbox(
             _stock_search_options,
@@ -68,6 +68,31 @@ with tab_analyze:
         ticker = (ticker or "").strip()
     with col2:
         strategy_name = st.selectbox("使用策略", list(config.STRATEGIES.keys()))
+    with col3:
+        period_options = config.PRICE_HISTORY_PERIOD_OPTIONS
+        period_labels = config.PRICE_HISTORY_PERIOD_LABELS
+        history_period = st.selectbox(
+            "歷史資料範圍",
+            period_options,
+            index=period_options.index(config.PRICE_HISTORY_PERIOD)
+            if config.PRICE_HISTORY_PERIOD in period_options else 0,
+            format_func=lambda p: period_labels.get(p, p),
+        )
+
+    with st.expander("🎛️ 圖表顯示設定(勾選要顯示的線條/面板)", expanded=False):
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            show_sma20 = st.checkbox("20日均線", value=True)
+            show_sma60 = st.checkbox("60日均線", value=True)
+        with c2:
+            show_bb = st.checkbox("布林通道", value=True)
+            show_volume = st.checkbox("成交量", value=True)
+        with c3:
+            show_volume_ma = st.checkbox("成交量均量", value=True, disabled=not show_volume)
+            show_rsi = st.checkbox("RSI 指標", value=True)
+        with c4:
+            show_macd = st.checkbox("MACD 指標", value=True)
+        st.caption("💡 圖表下方也有時間軸滑軌與快速按鈕(6個月/1年/5年/10年/全部),可自由縮放查看不同區間。")
 
     analyze_clicked = st.button("開始分析", type="primary", disabled=not ticker)
 
@@ -75,7 +100,7 @@ with tab_analyze:
         try:
             with st.spinner("下載股價資料並計算技術指標..."):
                 raw = yf.download(
-                    ticker, period=config.PRICE_HISTORY_PERIOD,
+                    ticker, period=history_period,
                     progress=False, auto_adjust=True,
                 )
                 if raw.empty:
@@ -135,7 +160,16 @@ with tab_analyze:
             )
 
             # --- 圖表 ---
-            fig = build_figure(ticker, df.tail(250))
+            fig = build_figure(
+                ticker, df,
+                show_sma20=show_sma20,
+                show_sma60=show_sma60,
+                show_bb=show_bb,
+                show_volume=show_volume,
+                show_volume_ma=show_volume_ma,
+                show_rsi=show_rsi,
+                show_macd=show_macd,
+            )
             st.plotly_chart(fig, use_container_width=True)
 
             # --- 新聞列表 ---
