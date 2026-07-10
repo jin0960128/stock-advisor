@@ -15,7 +15,9 @@
 
 ```
 stock_advisor/
+├── web_app.py       ← 新版自訂網頁介面(不使用 Streamlit)
 ├── main.py          ← 主程式,用指令執行不同功能
+├── app.py           ← 舊版 Streamlit 介面(可選)
 ├── config.py         ← 策略權重、資料庫路徑等設定,之後想調整指標權重改這裡
 ├── indicators.py      ← 技術指標計算 (SMA/EMA/RSI/MACD/布林通道)
 ├── decision.py         ← 訊號合成邏輯 (技術面 + ML + 新聞面 → 買賣觀望百分比)
@@ -38,10 +40,10 @@ pip install -r requirements.txt
 裝好套件後,直接執行:
 
 ```bash
-streamlit run app.py
+python web_app.py
 ```
 
-終端機會顯示一個網址(通常是 `http://localhost:8501`),並自動用瀏覽器打開。
+終端機會顯示一個網址(通常是 `http://localhost:8000`),用瀏覽器打開即可。
 之後每次要用,重複這行指令即可,不需要再打 `analyze` / `update` / `stats` 這些指令——
 網頁介面裡有四個分頁:
 
@@ -53,8 +55,16 @@ streamlit run app.py
 要關閉網頁伺服器,回到終端機按 `Ctrl + C` 即可。
 
 > 這個網頁只在你自己的電腦上執行(local),不會被其他人存取到,資料庫檔案也只存在你自己的電腦裡。
-> 如果之後想放到網路上讓手機也能開、或多人共用,可以考慮用 [Streamlit Community Cloud](https://streamlit.io/cloud)
-> 免費部署(把程式碼放上 GitHub 後一鍵部署),或是請我進一步協助改成正式的雲端部署版本。
+> 如果之後想放到網路上讓手機也能開、或多人共用,可以再改成正式雲端部署版本。
+
+### 舊版 Streamlit 介面
+
+專案仍保留 `app.py`,但新版自訂介面已不需要 Streamlit。若要使用舊版介面,需另外安裝
+`streamlit` 與 `streamlit-searchbox`,再執行:
+
+```bash
+streamlit run app.py
+```
 
 如果想啟用 Claude API 做更準確的新聞情緒判斷(而不是陽春的關鍵字比對),
 額外設定環境變數:
