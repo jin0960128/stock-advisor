@@ -75,69 +75,14 @@ def _inject_theme():
             padding-bottom: 2rem;
         }
 
-        .app-header {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 20px 24px;
-            margin-bottom: 18px;
-            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
-        }
-
-        .app-header__row {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 18px;
-        }
-
-        .app-eyebrow {
-            color: var(--teal);
-            font-size: 0.78rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            margin-bottom: 4px;
-        }
-
-        .app-title {
+        /* ---- 修正:強制所有一般文字/標籤/說明文字用固定顏色, ----
+           ---- 避免瀏覽器深色模式跟這份淺色主題打架導致文字看不見 ---- */
+        .stApp, .stApp p, .stApp span, .stApp label,
+        div[data-testid="stMarkdownContainer"] p,
+        div[data-testid="stCaptionContainer"],
+        div[data-testid="stWidgetLabel"] p,
+        div[data-testid="stWidgetLabel"] label {
             color: var(--text);
-            font-size: 1.85rem;
-            font-weight: 800;
-            margin: 0;
-            letter-spacing: 0;
-            line-height: 1.2;
-        }
-
-        .app-note {
-            color: var(--muted);
-            font-size: 0.94rem;
-            margin-top: 8px;
-            margin-bottom: 0;
-            line-height: 1.55;
-        }
-
-        .app-status {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            justify-content: flex-end;
-            min-width: 220px;
-        }
-
-        .app-status span,
-        .score-pill,
-        .signal-tag {
-            display: inline-flex;
-            align-items: center;
-            gap: 7px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-            background: var(--surface-muted);
-            color: var(--text);
-            font-size: 0.84rem;
-            font-weight: 650;
-            padding: 7px 10px;
-            white-space: nowrap;
         }
 
         div[data-testid="stTabs"] button {
@@ -146,9 +91,18 @@ def _inject_theme():
             font-weight: 700;
         }
 
+        div[data-testid="stTabs"] button p {
+            color: var(--muted) !important;
+            font-weight: 700;
+        }
+
         div[data-testid="stTabs"] button[aria-selected="true"] {
             color: var(--teal);
             border-bottom-color: var(--teal);
+        }
+
+        div[data-testid="stTabs"] button[aria-selected="true"] p {
+            color: var(--teal) !important;
         }
 
         div[data-testid="stMetric"] {
@@ -160,13 +114,13 @@ def _inject_theme():
         }
 
         div[data-testid="stMetricLabel"] p {
-            color: var(--muted);
+            color: var(--muted) !important;
             font-size: 0.86rem;
             font-weight: 700;
         }
 
         div[data-testid="stMetricValue"] {
-            color: var(--text);
+            color: var(--text) !important;
             font-weight: 800;
         }
 
@@ -177,10 +131,12 @@ def _inject_theme():
             border-radius: 8px;
             border-color: var(--border);
             background: var(--surface-muted);
+            color: var(--text) !important;
         }
 
         div[data-testid="stSelectbox"] [data-baseweb="select"] input {
             background: transparent;
+            color: var(--text) !important;
         }
 
         div[data-testid="stSelectbox"] [data-baseweb="select"] > div:hover,
@@ -280,6 +236,20 @@ def _inject_theme():
             margin: 10px 0 12px;
         }
 
+        .score-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--surface-muted);
+            color: var(--text);
+            font-size: 0.84rem;
+            font-weight: 650;
+            padding: 7px 10px;
+            white-space: nowrap;
+        }
+
         .score-pill.positive {
             color: var(--green);
             border-color: #b7e3cc;
@@ -296,6 +266,20 @@ def _inject_theme():
             color: var(--blue);
             border-color: #c8daf8;
             background: var(--blue-soft);
+        }
+
+        .signal-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--surface-muted);
+            color: var(--text);
+            font-size: 0.84rem;
+            font-weight: 650;
+            padding: 7px 10px;
+            white-space: nowrap;
         }
 
         .signal-panel {
@@ -368,13 +352,80 @@ def _inject_theme():
             overflow: hidden;
         }
 
+        /* ---- 頂部標題列:左邊標題卡片 + 右邊策略選單/狀態徽章 ---- */
+        .app-header-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 18px 22px;
+            height: 100%;
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+        }
+
+        .app-eyebrow {
+            color: var(--teal);
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .app-title {
+            color: var(--text);
+            font-size: 1.85rem;
+            font-weight: 800;
+            margin: 0;
+            letter-spacing: 0;
+            line-height: 1.2;
+        }
+
+        .app-note {
+            color: var(--muted);
+            font-size: 0.94rem;
+            margin-top: 8px;
+            margin-bottom: 0;
+            line-height: 1.55;
+        }
+
+        .app-header-side {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px 16px;
+            height: 100%;
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+        }
+
+        .app-header-side .stSelectbox label p {
+            color: var(--muted) !important;
+            font-weight: 700;
+        }
+
+        .app-status {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .app-status span {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--surface-muted);
+            color: var(--text);
+            font-size: 0.82rem;
+            font-weight: 650;
+            padding: 6px 9px;
+            white-space: nowrap;
+        }
+
         @media (max-width: 760px) {
-            .app-header__row,
             .decision-banner {
                 flex-direction: column;
                 align-items: flex-start;
             }
-            .app-status,
             .decision-meta {
                 justify-content: flex-start;
                 text-align: left;
@@ -389,28 +440,50 @@ def _inject_theme():
     )
 
 
+def _strategy_label(strategy_name: str) -> str:
+    return config.get_strategy_label(strategy_name)
+
+
 def _render_header():
-    st.markdown(
-        """
-        <div class="app-header">
-            <div class="app-header__row">
-                <div>
-                    <div class="app-eyebrow">Investment Research Console</div>
-                    <h1 class="app-title">股票分析決策系統</h1>
-                    <p class="app-note">本工具僅供學習與研究參考，任何輸出都不構成投資建議。</p>
-                </div>
-                <div class="app-status">
-                    <span>技術面</span>
-                    <span>K線</span>
-                    <span>籌碼</span>
-                    <span>ML</span>
-                    <span>新聞</span>
-                </div>
+    """
+    頂部標題列。左側是標題卡片,右側是「使用策略」選單(真正可互動的元件,
+    不是裝飾用的假文字)+ 下方一排功能徽章。
+    回傳使用者選擇的策略名稱,供下面「分析條件」區塊直接使用。
+    """
+    head_left, head_right = st.columns([2.3, 1])
+    with head_left:
+        st.markdown(
+            """
+            <div class="app-header-card">
+                <div class="app-eyebrow">Investment Research Console</div>
+                <h1 class="app-title">股票分析決策系統</h1>
+                <p class="app-note">本工具僅供學習與研究參考，任何輸出都不構成投資建議。</p>
             </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+            """,
+            unsafe_allow_html=True,
+        )
+    with head_right:
+        st.markdown('<div class="app-header-side">', unsafe_allow_html=True)
+        strategy_name = st.selectbox(
+            "使用策略",
+            list(config.STRATEGIES.keys()),
+            format_func=_strategy_label,
+            key="header_strategy_select",
+        )
+        st.markdown(
+            """
+            <div class="app-status">
+                <span>技術面</span>
+                <span>K線</span>
+                <span>籌碼</span>
+                <span>ML</span>
+                <span>新聞</span>
+            </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    return strategy_name
 
 
 def _tone(score: float) -> str:
@@ -508,7 +581,7 @@ def _render_news_item(item: dict):
 
 
 _inject_theme()
-_render_header()
+strategy_name = _render_header()
 
 tab_analyze, tab_update, tab_stats, tab_history = st.tabs(
     ["🔍 分析", "🔄 回顧更新", "📊 績效統計", "🕘 歷史紀錄"]
@@ -522,14 +595,10 @@ def _stock_label(stock: tuple) -> str:
     return f"{code}　{name}　［{market}］"
 
 
-def _strategy_label(strategy_name: str) -> str:
-    return config.get_strategy_label(strategy_name)
-
-
 # ============ 分析頁 ============
 with tab_analyze:
     _render_section_title("分析條件")
-    col_market, col1, col2, col3 = st.columns([1, 2, 1, 1])
+    col_market, col1, col3 = st.columns([1, 2, 1])
     with col_market:
         market_filter = st.selectbox("市場", MARKET_OPTIONS, index=0)
     with col1:
@@ -542,12 +611,6 @@ with tab_analyze:
             key=f"ticker_select_{market_filter}",
         )
         ticker = stock_option[1] if stock_option else ""
-    with col2:
-        strategy_name = st.selectbox(
-            "使用策略",
-            list(config.STRATEGIES.keys()),
-            format_func=_strategy_label,
-        )
     with col3:
         period_options = config.PRICE_HISTORY_PERIOD_OPTIONS
         period_labels = config.PRICE_HISTORY_PERIOD_LABELS
@@ -558,6 +621,8 @@ with tab_analyze:
             if config.PRICE_HISTORY_PERIOD in period_options else 0,
             format_func=lambda p: period_labels.get(p, p),
         )
+
+    st.caption(f"目前使用策略:**{_strategy_label(strategy_name)}**(可到最上方標題列右側切換)")
 
     with st.expander("圖表顯示設定", expanded=False):
         c1, c2, c3, c4 = st.columns(4)
