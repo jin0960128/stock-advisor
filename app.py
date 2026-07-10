@@ -53,6 +53,10 @@ def _stock_search_options(searchterm: str, market_filter: str = "全部市場"):
     ]
 
 
+def _strategy_label(strategy_name: str) -> str:
+    return config.get_strategy_label(strategy_name)
+
+
 # ============ 分析頁 ============
 with tab_analyze:
     col_market, col1, col2, col3 = st.columns([1, 2, 1, 1])
@@ -72,7 +76,11 @@ with tab_analyze:
         )
         ticker = (ticker or "").strip()
     with col2:
-        strategy_name = st.selectbox("使用策略", list(config.STRATEGIES.keys()))
+        strategy_name = st.selectbox(
+            "使用策略",
+            list(config.STRATEGIES.keys()),
+            format_func=_strategy_label,
+        )
     with col3:
         period_options = config.PRICE_HISTORY_PERIOD_OPTIONS
         period_labels = config.PRICE_HISTORY_PERIOD_LABELS
@@ -160,6 +168,7 @@ with tab_analyze:
                 news_score_val, news_items = analyze_news_sentiment(ticker)
 
             strategy = config.STRATEGIES[strategy_name]
+            strategy_label = config.get_strategy_label(strategy_name)
             recommendation = build_recommendation(
                 tech_score_val, ml_score_val, news_score_val, strategy,
                 kline_score_val=kline_score_val, chip_score_val=chip_score_val,
@@ -176,7 +185,7 @@ with tab_analyze:
 
             st.success(
                 f"分析完成,已記錄本次建議(編號 #{record_id}),"
-                f"{strategy['holding_days']} 個交易日後可到「回顧更新」頁查看結果。"
+                f"使用「{strategy_label}」,{strategy['holding_days']} 個交易日後可到「回顧更新」頁查看結果。"
             )
 
             # --- 建議摘要 ---
@@ -270,7 +279,8 @@ with tab_update:
                         latest_price = float(recent["Close"].iloc[-1])
                         returns = storage.update_outcome(rec["id"], latest_price)
                         results.append({
-                            "編號": rec["id"], "代號": rec["ticker"], "策略": rec["strategy"],
+                            "編號": rec["id"], "代號": rec["ticker"],
+                            "策略": config.get_strategy_label(rec["strategy"]),
                             "建議": rec["top_action"],
                             "價格漲跌%": round(returns["gross_price_return"], 2),
                             "方向毛報酬%": round(returns["action_return"], 2),
@@ -298,7 +308,7 @@ with tab_stats:
         rows = []
         for name, s in stats.items():
             rows.append({
-                "策略": name,
+                "策略": config.get_strategy_label(name),
                 "已回顧建議數": s["total_recommendations"],
                 "有方向建議數": s["directional_recommendations"],
                 "長期方向勝率%": s["directional_win_rate_pct"],
@@ -316,6 +326,9 @@ with tab_stats:
 
         st.subheader("長期預測準確率比較")
         acc_strategy = pd.DataFrame(storage.get_accuracy_breakdown("strategy"))
+        if not acc_strategy.empty:
+            acc_strategy["group"] = acc_strategy["group"].map(config.get_strategy_label)
+            acc_strategy = acc_strategy.rename(columns={"group": "策略"})
         acc_action = pd.DataFrame(storage.get_accuracy_breakdown("top_action"))
         acc_ticker = pd.DataFrame(storage.get_accuracy_breakdown("ticker", min_count=2))
         a1, a2 = st.columns(2)
@@ -341,4 +354,8 @@ with tab_history:
     if not records:
         st.info("沒有找到歷史紀錄。")
     else:
-        st.dataframe(pd.DataFrame(records), use_container_width=True)
+        history_df = pd.DataFrame(records)
+        if "strategy" in history_df.columns:
+            history_df["strategy"] = history_df["strategy"].map(config.get_strategy_label)
+            history_df = history_df.rename(columns={"strategy": "策略"})
+        st.dataframe(history_df, use_container_width=True)

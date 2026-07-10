@@ -45,11 +45,14 @@ def _download_and_prepare(ticker: str):
 def cmd_analyze(ticker: str, strategy_name: str, fee_deducted: bool = None,
                 buy_fee_rate: float = None, sell_fee_rate: float = None,
                 sell_tax_rate: float = None):
+    strategy_name = config.resolve_strategy_name(strategy_name)
     if strategy_name not in config.STRATEGIES:
-        raise ValueError(f"找不到策略 '{strategy_name}',可用策略: {list(config.STRATEGIES.keys())}")
+        available = [config.get_strategy_label(name) for name in config.STRATEGIES]
+        raise ValueError(f"找不到策略 '{strategy_name}',可用策略: {available}")
     strategy = config.STRATEGIES[strategy_name]
+    strategy_label = config.get_strategy_label(strategy_name)
 
-    print(f"\n{'=' * 60}\n分析 {ticker}(策略: {strategy_name}）\n{'=' * 60}")
+    print(f"\n{'=' * 60}\n分析 {ticker}(策略: {strategy_label}）\n{'=' * 60}")
 
     # 1. 股價 + 技術指標
     print("下載股價資料並計算技術指標...")
@@ -133,7 +136,7 @@ def cmd_update():
                 continue
             latest_price = float(recent["Close"].iloc[-1])
             returns = storage.update_outcome(rec["id"], latest_price)
-            print(f"#{rec['id']} {ticker} [{rec['strategy']}] "
+            print(f"#{rec['id']} {ticker} [{config.get_strategy_label(rec['strategy'])}] "
                   f"建議={rec['top_action']}　價格漲跌={returns['gross_price_return']:+.2f}%　"
                   f"扣費後報酬={returns['net_return']:+.2f}%")
         except Exception as e:
@@ -151,7 +154,7 @@ def cmd_stats():
     for strategy_name, s in sorted(
         stats.items(), key=lambda kv: (kv[1]["avg_actual_return_pct"] or -999), reverse=True
     ):
-        print(f"\n策略: {strategy_name}")
+        print(f"\n策略: {config.get_strategy_label(strategy_name)}")
         print(f"  已回顧建議數: {s['total_recommendations']}")
         print(f"  有方向建議數: {s['directional_recommendations']}")
         print(f"  方向判斷勝率: {s['directional_win_rate_pct']}%" if s['directional_win_rate_pct'] is not None else "  方向判斷勝率: N/A")
@@ -160,13 +163,13 @@ def cmd_stats():
         print(f"  平均扣費後報酬: {s['avg_net_return_pct']}%" if s['avg_net_return_pct'] is not None else "  平均扣費後報酬: N/A")
 
     best = max(stats.items(), key=lambda kv: (kv[1]["avg_actual_return_pct"] or -999))
-    print(f"\n目前平均扣費後報酬率最優的策略: {best[0]}")
+    print(f"\n目前平均扣費後報酬率最優的策略: {config.get_strategy_label(best[0])}")
 
     breakdown = storage.get_accuracy_breakdown("strategy")
     if breakdown:
         print("\n長期預測準確率比較(依策略):")
         for row in breakdown:
-            print(f"  {row['group']}: 勝率 {row['accuracy_pct']}%, "
+            print(f"  {config.get_strategy_label(row['group'])}: 勝率 {row['accuracy_pct']}%, "
                   f"有方向筆數 {row['directional_count']}, "
                   f"平均扣費後報酬 {row['avg_net_return_pct']}%")
 
@@ -179,7 +182,7 @@ def cmd_history(ticker: str):
     print(f"\n{ticker} 歷史建議紀錄(最新 {len(records)} 筆):")
     for r in records:
         status = "已回顧" if r["outcome_checked"] else "待回顧"
-        line = f"  [{r['created_at']}] 策略={r['strategy']} 建議={r['top_action']} " \
+        line = f"  [{r['created_at']}] 策略={config.get_strategy_label(r['strategy'])} 建議={r['top_action']} " \
                f"(買{r['buy_pct']}%/觀{r['hold_pct']}%/賣{r['sell_pct']}%) 狀態={status}"
         if r["outcome_checked"]:
             line += f" 扣費後報酬={r['actual_return']:+.2f}% 判斷正確={r['was_correct']}"
@@ -193,7 +196,7 @@ def main():
     p_analyze = subparsers.add_parser("analyze", help="分析單一股票並產生建議")
     p_analyze.add_argument("ticker", help="股票代號,例如 2330.TW 或 AAPL")
     p_analyze.add_argument("--strategy", default=config.DEFAULT_STRATEGY,
-                            help=f"策略名稱,可用: {list(config.STRATEGIES.keys())}")
+                            help=f"策略名稱,可用: {[config.get_strategy_label(name) for name in config.STRATEGIES]}")
     p_analyze.add_argument("--no-fee-deduct", action="store_true",
                            help="持有紀錄回顧時不內扣交易成本")
     p_analyze.add_argument("--buy-fee-rate", type=float, default=config.DEFAULT_BUY_FEE_RATE,

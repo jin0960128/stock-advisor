@@ -99,11 +99,12 @@ python main.py analyze AAPL --no-fee-deduct
 
 ### 2. 換不同策略分析(權重不同)
 
-`config.py` 裡預先設定了三組策略,你可以直接套用,或自己新增:
+`config.py` 裡預先設定了幾組策略,網頁會顯示中文名稱,命令列也可以直接使用中文策略名:
 
 ```bash
-python main.py analyze 2330.TW --strategy news_focused
-python main.py analyze 2330.TW --strategy technical_focused
+python main.py analyze 2330.TW --strategy 新聞導向策略
+python main.py analyze 2330.TW --strategy 技術導向策略
+python main.py analyze 2330.TW --strategy 長期預測策略
 ```
 
 ### 3. 回顧歷史建議的實際結果

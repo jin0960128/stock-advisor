@@ -11,6 +11,8 @@ build_figure 支援:
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+import config
+
 # 時間軸快速按鈕(下方會加在圖表最上方的 x 軸)
 _RANGE_SELECTOR_BUTTONS = [
     dict(count=6, label="6個月", step="month", stepmode="backward"),
@@ -148,9 +150,10 @@ def build_report(
     strategy_name: str, output_path: str, **figure_options,
 ):
     fig = build_figure(ticker, df, **figure_options)
+    strategy_label = config.get_strategy_label(strategy_name)
 
     title = (
-        f"{ticker} 綜合建議(策略:{strategy_name})　|　"
+        f"{ticker} 綜合建議(策略:{strategy_label})　|　"
         f"<b>買入 {recommendation['buy_pct']}%　觀望 {recommendation['hold_pct']}%　"
         f"賣出 {recommendation['sell_pct']}%</b><br>"
         f"<sub>技術面分數 {recommendation['technical_score']}　"

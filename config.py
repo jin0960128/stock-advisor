@@ -45,7 +45,29 @@ STRATEGIES = {
     },
 }
 
+STRATEGY_LABELS = {
+    "default": "平衡策略",
+    "news_focused": "新聞導向策略",
+    "technical_focused": "技術導向策略",
+    "long_term_focused": "長期預測策略",
+}
+
 DEFAULT_STRATEGY = "default"
+
+
+def get_strategy_label(strategy_name: str) -> str:
+    """把內部策略代號轉成畫面顯示用中文名稱。"""
+    return STRATEGY_LABELS.get(strategy_name, strategy_name)
+
+
+def resolve_strategy_name(strategy_name: str) -> str:
+    """允許 CLI 使用內部代號或中文策略名稱。"""
+    if strategy_name in STRATEGIES:
+        return strategy_name
+    for key, label in STRATEGY_LABELS.items():
+        if strategy_name == label:
+            return key
+    return strategy_name
 
 # ============ 資料來源設定 ============
 PRICE_HISTORY_PERIOD = "10y"    # 抓取歷史股價的區間(預設10年,可在網頁上讓使用者調整)
