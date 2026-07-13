@@ -387,38 +387,41 @@ def _inject_theme():
             line-height: 1.55;
         }
 
-        .app-header-side {
+        /* ---- 標題下方獨立一排的「控制列」:策略選單 + 五個訊號開關 ---- */
+        .control-bar {
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: 8px;
-            padding: 14px 16px;
-            height: 100%;
+            padding: 16px 20px;
+            margin-top: 14px;
+            margin-bottom: 8px;
             box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
         }
 
-        .app-header-side .stSelectbox label p {
+        .control-bar .stSelectbox label p {
             color: var(--muted) !important;
             font-weight: 700;
         }
 
-        .app-status {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 10px;
+        .control-bar-label {
+            color: var(--muted);
+            font-size: 0.78rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            margin-bottom: 8px;
         }
 
-        .app-status span {
-            display: inline-flex;
-            align-items: center;
-            border-radius: 8px;
-            border: 1px solid var(--border);
+        div[data-testid="stToggle"] label p {
+            color: var(--text) !important;
+            font-weight: 700;
+            font-size: 0.88rem;
+        }
+
+        div[data-testid="stToggle"] {
             background: var(--surface-muted);
-            color: var(--text);
-            font-size: 0.82rem;
-            font-weight: 650;
-            padding: 6px 9px;
-            white-space: nowrap;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 12px;
         }
 
         @media (max-width: 760px) {
@@ -446,44 +449,76 @@ def _strategy_label(strategy_name: str) -> str:
 
 def _render_header():
     """
-    頂部標題列。左側是標題卡片,右側是「使用策略」選單(真正可互動的元件,
-    不是裝飾用的假文字)+ 下方一排功能徽章。
-    回傳使用者選擇的策略名稱,供下面「分析條件」區塊直接使用。
+    頂部標題卡片,獨立一整排,只放標題跟說明文字,不跟其他控制項擠在一起。
     """
-    head_left, head_right = st.columns([2.3, 1])
-    with head_left:
-        st.markdown(
-            """
-            <div class="app-header-card">
-                <div class="app-eyebrow">Investment Research Console</div>
-                <h1 class="app-title">股票分析決策系統</h1>
-                <p class="app-note">本工具僅供學習與研究參考，任何輸出都不構成投資建議。</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with head_right:
-        st.markdown('<div class="app-header-side">', unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="app-header-card">
+            <div class="app-eyebrow">Investment Research Console</div>
+            <h1 class="app-title">股票分析決策系統</h1>
+            <p class="app-note">本工具僅供學習與研究參考，任何輸出都不構成投資建議。</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+SIGNAL_TOGGLE_DEFS = [
+    ("use_technical", "技術面"),
+    ("use_kline", "K線"),
+    ("use_chip", "籌碼"),
+    ("use_ml", "ML"),
+    ("use_news", "新聞"),
+]
+
+
+def _render_control_bar():
+    """
+    標題下方獨立一排的控制列:左邊是「使用策略」選單,右邊是五個訊號開關。
+    這五個開關是真正會影響分析結果的功能:關掉某個訊號,這次分析的
+    綜合分數就不會納入該訊號(對應策略裡的權重會被歸零、其餘訊號自動重新
+    正規化),不是純裝飾文字。
+    回傳 (strategy_name, signal_flags_dict)。
+    """
+    st.markdown('<div class="control-bar">', unsafe_allow_html=True)
+    col_strategy, col_toggles = st.columns([1.3, 3])
+    with col_strategy:
         strategy_name = st.selectbox(
             "使用策略",
             list(config.STRATEGIES.keys()),
             format_func=_strategy_label,
             key="header_strategy_select",
         )
-        st.markdown(
-            """
-            <div class="app-status">
-                <span>技術面</span>
-                <span>K線</span>
-                <span>籌碼</span>
-                <span>ML</span>
-                <span>新聞</span>
-            </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    return strategy_name
+    with col_toggles:
+        st.markdown('<div class="control-bar-label">預測工具開關(關閉的訊號不會計入本次分析)</div>', unsafe_allow_html=True)
+        toggle_cols = st.columns(len(SIGNAL_TOGGLE_DEFS))
+        signal_flags = {}
+        for col, (key, label) in zip(toggle_cols, SIGNAL_TOGGLE_DEFS):
+            with col:
+                signal_flags[key] = st.toggle(label, value=True, key=key)
+    st.markdown('</div>', unsafe_allow_html=True)
+    return strategy_name, signal_flags
+
+
+def _apply_signal_flags(strategy: dict, signal_flags: dict) -> dict:
+    """
+    依照使用者關閉的訊號開關,回傳一份權重已歸零的策略設定副本。
+    combine_signals() 本來就是用「有開的訊號權重總和」去正規化,
+    所以這裡只要把關閉訊號的權重設成 0,其餘訊號的比例就會自動放大,
+    不需要改動 decision.py。
+    """
+    adjusted = dict(strategy)
+    weight_map = {
+        "use_technical": "technical_weight",
+        "use_kline": "kline_weight",
+        "use_chip": "chip_weight",
+        "use_ml": "ml_weight",
+        "use_news": "news_weight",
+    }
+    for flag_key, weight_key in weight_map.items():
+        if not signal_flags.get(flag_key, True):
+            adjusted[weight_key] = 0.0
+    return adjusted
 
 
 def _tone(score: float) -> str:
@@ -581,7 +616,8 @@ def _render_news_item(item: dict):
 
 
 _inject_theme()
-strategy_name = _render_header()
+_render_header()
+strategy_name, signal_flags = _render_control_bar()
 
 tab_analyze, tab_update, tab_stats, tab_history = st.tabs(
     ["🔍 分析", "🔄 回顧更新", "📊 績效統計", "🕘 歷史紀錄"]
@@ -622,7 +658,7 @@ with tab_analyze:
             format_func=lambda p: period_labels.get(p, p),
         )
 
-    st.caption(f"目前使用策略:**{_strategy_label(strategy_name)}**(可到最上方標題列右側切換)")
+    st.caption(f"目前使用策略:**{_strategy_label(strategy_name)}**(策略與預測工具開關可到最上方標題下方的控制列調整)")
 
     with st.expander("圖表顯示設定", expanded=False):
         c1, c2, c3, c4 = st.columns(4)
@@ -697,8 +733,11 @@ with tab_analyze:
             with st.spinner("搜尋近期新聞並分析情緒..."):
                 news_score_val, news_items = analyze_news_sentiment(ticker)
 
-            strategy = config.STRATEGIES[strategy_name]
+            strategy = _apply_signal_flags(config.STRATEGIES[strategy_name], signal_flags)
             strategy_label = config.get_strategy_label(strategy_name)
+            disabled_signals = [label for key, label in SIGNAL_TOGGLE_DEFS if not signal_flags.get(key, True)]
+            if disabled_signals:
+                st.caption(f"本次分析已關閉:{'、'.join(disabled_signals)},綜合分數只採計其餘開啟中的訊號。")
             recommendation = build_recommendation(
                 tech_score_val, ml_score_val, news_score_val, strategy,
                 kline_score_val=kline_score_val, chip_score_val=chip_score_val,
