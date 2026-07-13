@@ -411,6 +411,12 @@ def _inject_theme():
             margin-bottom: 8px;
         }
 
+        .control-bar-hint {
+            color: var(--muted);
+            font-size: 0.82rem;
+            margin-top: 6px;
+        }
+
         div[data-testid="stToggle"] label p {
             color: var(--text) !important;
             font-weight: 700;
@@ -478,24 +484,33 @@ def _render_control_bar():
     這五個開關是真正會影響分析結果的功能:關掉某個訊號,這次分析的
     綜合分數就不會納入該訊號(對應策略裡的權重會被歸零、其餘訊號自動重新
     正規化),不是純裝飾文字。
+
+    整個控制列只有一個標題「使用策略」,預設策略下拉選單跟五個訊號開關都
+    放在同一個標題底下,因為對使用者來說這本來就是同一件事:
+    「這次分析要依據什麼」。
     回傳 (strategy_name, signal_flags_dict)。
     """
     st.markdown('<div class="control-bar">', unsafe_allow_html=True)
+    st.markdown('<div class="control-bar-label">使用策略</div>', unsafe_allow_html=True)
     col_strategy, col_toggles = st.columns([1.3, 3])
     with col_strategy:
         strategy_name = st.selectbox(
-            "使用策略",
+            "預設組合",
             list(config.STRATEGIES.keys()),
             format_func=_strategy_label,
             key="header_strategy_select",
+            label_visibility="collapsed",
         )
     with col_toggles:
-        st.markdown('<div class="control-bar-label">預測工具開關(關閉的訊號不會計入本次分析)</div>', unsafe_allow_html=True)
         toggle_cols = st.columns(len(SIGNAL_TOGGLE_DEFS))
         signal_flags = {}
         for col, (key, label) in zip(toggle_cols, SIGNAL_TOGGLE_DEFS):
             with col:
                 signal_flags[key] = st.toggle(label, value=True, key=key)
+    st.markdown(
+        '<div class="control-bar-hint">左邊選預設權重組合，右邊可再關閉不想採用的訊號，兩者共同決定這次分析的依據。</div>',
+        unsafe_allow_html=True,
+    )
     st.markdown('</div>', unsafe_allow_html=True)
     return strategy_name, signal_flags
 
