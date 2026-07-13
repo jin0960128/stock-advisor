@@ -477,40 +477,54 @@ SIGNAL_TOGGLE_DEFS = [
     ("use_news", "新聞"),
 ]
 
+_STRATEGY_KEYS = list(config.STRATEGIES.keys())
+_STRATEGY_LABELS = [config.get_strategy_label(k) for k in _STRATEGY_KEYS]
+_SIGNAL_LABELS = [label for _, label in SIGNAL_TOGGLE_DEFS]
+_SIGNAL_LABEL_TO_KEY = {label: key for key, label in SIGNAL_TOGGLE_DEFS}
+_ALL_STRATEGY_OPTIONS = _STRATEGY_LABELS + _SIGNAL_LABELS  # 4 個策略 + 5 個訊號 = 9 個選項
+
 
 def _render_control_bar():
     """
-    標題下方獨立一排的控制列:左邊是「使用策略」選單,右邊是五個訊號開關。
-    這五個開關是真正會影響分析結果的功能:關掉某個訊號,這次分析的
-    綜合分數就不會納入該訊號(對應策略裡的權重會被歸零、其餘訊號自動重新
-    正規化),不是純裝飾文字。
+    標題下方獨立一排的控制列,只有一個欄位「使用策略」。
+    點開這個欄位,裡面同時列出 4 個預設策略組合跟 5 個訊號,一共 9 個選項,
+    用同一個下拉多選選單勾選,不會有任何一直顯示在畫面上的開關按鈕。
 
-    整個控制列只有一個標題「使用策略」,預設策略下拉選單跟五個訊號開關都
-    放在同一個標題底下,因為對使用者來說這本來就是同一件事:
-    「這次分析要依據什麼」。
+    邏輯:
+    - 9 個選項裡,只要是「策略名稱」被選到,就套用那組策略的權重;
+      如果選了不只一個策略,只套用排序最前面的那個,並提示使用者。
+    - 5 個「訊號」選項,有勾選的就是這次要採用的訊號,沒勾的就關閉
+      (對應權重歸零,交給 _apply_signal_flags 處理)。
+
     回傳 (strategy_name, signal_flags_dict)。
     """
     st.markdown('<div class="control-bar">', unsafe_allow_html=True)
     st.markdown('<div class="control-bar-label">使用策略</div>', unsafe_allow_html=True)
-    col_strategy, col_toggles = st.columns([1.3, 3])
-    with col_strategy:
-        strategy_name = st.selectbox(
-            "預設組合",
-            list(config.STRATEGIES.keys()),
-            format_func=_strategy_label,
-            key="header_strategy_select",
-            label_visibility="collapsed",
-        )
-    with col_toggles:
-        toggle_cols = st.columns(len(SIGNAL_TOGGLE_DEFS))
-        signal_flags = {}
-        for col, (key, label) in zip(toggle_cols, SIGNAL_TOGGLE_DEFS):
-            with col:
-                signal_flags[key] = st.toggle(label, value=True, key=key)
-    st.markdown(
-        '<div class="control-bar-hint">左邊選預設權重組合，右邊可再關閉不想採用的訊號，兩者共同決定這次分析的依據。</div>',
-        unsafe_allow_html=True,
+
+    default_selection = [_STRATEGY_LABELS[0]] + _SIGNAL_LABELS
+    selected = st.multiselect(
+        "使用策略",
+        _ALL_STRATEGY_OPTIONS,
+        default=default_selection,
+        key="strategy_multiselect",
+        label_visibility="collapsed",
+        placeholder="選擇策略組合與要採用的訊號",
     )
+
+    selected_strategies = [label for label in _STRATEGY_LABELS if label in selected]
+    chosen_strategy_label = selected_strategies[0] if selected_strategies else _STRATEGY_LABELS[0]
+    strategy_name = _STRATEGY_KEYS[_STRATEGY_LABELS.index(chosen_strategy_label)]
+
+    signal_flags = {key: (label in selected) for label, key in _SIGNAL_LABEL_TO_KEY.items()}
+
+    if len(selected_strategies) > 1:
+        st.caption(
+            f"你選了多個策略組合({'、'.join(selected_strategies)}),"
+            f"目前只會套用「{chosen_strategy_label}」,如需切換請只留一個策略選項。"
+        )
+    elif not selected_strategies:
+        st.caption(f"未選擇策略組合,已自動套用預設的「{chosen_strategy_label}」。")
+
     st.markdown('</div>', unsafe_allow_html=True)
     return strategy_name, signal_flags
 
