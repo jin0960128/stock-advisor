@@ -7,52 +7,63 @@ config.py
 """
 
 # ============ 策略設定 ============
-# 每個策略是一組權重組合,weight 總和不用剛好是 1,程式會自動正規化。
-# 你可以新增多組策略(例如 aggressive / conservative),
-# 之後 stats 報表會分別統計每個策略的長期表現,方便比較哪組最好。
+# 每一組策略都是「單一訊號、獨立完整」的預測系統:
+# 該策略 100% 只依據對應的那個訊號算出買賣建議,其他訊號權重一律是 0,
+# 彼此之間不會混合、不是拼裝組合。
+# decision.py 的 combine_signals() 本來就是照權重加總去正規化,
+# 所以某訊號權重設 1.0、其餘設 0.0,結果自然就等於「只看這個訊號」。
 STRATEGIES = {
-    "default": {
-        "technical_weight": 0.30,  # 技術指標訊號的權重
-        "kline_weight": 0.15,      # K 線型態訊號的權重
-        "chip_weight": 0.15,       # 籌碼/量價訊號的權重
-        "ml_weight": 0.25,         # 機器學習模型(隨機森林)訊號的權重
-        "news_weight": 0.15,       # 新聞情緒訊號的權重
+    "technical_only": {
+        "technical_weight": 1.0,  # 只依據技術指標(RSI/MACD/均線)
+        "kline_weight": 0.0,
+        "chip_weight": 0.0,
+        "ml_weight": 0.0,
+        "news_weight": 0.0,
         "holding_days": 5,         # 建議後多少個交易日,回頭檢查結果
     },
-    "news_focused": {
-        "technical_weight": 0.15,
-        "kline_weight": 0.10,
-        "chip_weight": 0.10,
-        "ml_weight": 0.20,
-        "news_weight": 0.45,
+    "kline_only": {
+        "technical_weight": 0.0,
+        "kline_weight": 1.0,      # 只依據 K 線型態(吞噬、錘子線、連陽連陰...)
+        "chip_weight": 0.0,
+        "ml_weight": 0.0,
+        "news_weight": 0.0,
         "holding_days": 5,
     },
-    "technical_focused": {
-        "technical_weight": 0.45,
-        "kline_weight": 0.25,
-        "chip_weight": 0.15,
-        "ml_weight": 0.10,
-        "news_weight": 0.05,
-        "holding_days": 10,
+    "chip_only": {
+        "technical_weight": 0.0,
+        "kline_weight": 0.0,
+        "chip_weight": 1.0,       # 只依據籌碼/量價(量比、MFI、OBV、ADL、VPT)
+        "ml_weight": 0.0,
+        "news_weight": 0.0,
+        "holding_days": 5,
     },
-    "long_term_focused": {
-        "technical_weight": 0.25,
-        "kline_weight": 0.10,
-        "chip_weight": 0.20,
-        "ml_weight": 0.35,
-        "news_weight": 0.10,
-        "holding_days": 20,
+    "ml_only": {
+        "technical_weight": 0.0,
+        "kline_weight": 0.0,
+        "chip_weight": 0.0,
+        "ml_weight": 1.0,          # 只依據機器學習模型(隨機森林)預測
+        "news_weight": 0.0,
+        "holding_days": 5,
+    },
+    "news_only": {
+        "technical_weight": 0.0,
+        "kline_weight": 0.0,
+        "chip_weight": 0.0,
+        "ml_weight": 0.0,
+        "news_weight": 1.0,        # 只依據新聞情緒分析
+        "holding_days": 5,
     },
 }
 
 STRATEGY_LABELS = {
-    "default": "平衡策略",
-    "news_focused": "新聞導向策略",
-    "technical_focused": "技術導向策略",
-    "long_term_focused": "長期預測策略",
+    "technical_only": "技術面策略",
+    "kline_only": "K線策略",
+    "chip_only": "籌碼策略",
+    "ml_only": "ML策略",
+    "news_only": "新聞導向策略",
 }
 
-DEFAULT_STRATEGY = "default"
+DEFAULT_STRATEGY = "technical_only"
 
 
 def get_strategy_label(strategy_name: str) -> str:
