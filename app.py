@@ -469,85 +469,26 @@ def _render_header():
     )
 
 
-SIGNAL_TOGGLE_DEFS = [
-    ("use_technical", "技術面"),
-    ("use_kline", "K線"),
-    ("use_chip", "籌碼"),
-    ("use_ml", "ML"),
-    ("use_news", "新聞"),
-]
-
-_STRATEGY_KEYS = list(config.STRATEGIES.keys())
-_STRATEGY_LABELS = [config.get_strategy_label(k) for k in _STRATEGY_KEYS]
-_SIGNAL_LABELS = [label for _, label in SIGNAL_TOGGLE_DEFS]
-_SIGNAL_LABEL_TO_KEY = {label: key for key, label in SIGNAL_TOGGLE_DEFS}
-_ALL_STRATEGY_OPTIONS = _STRATEGY_LABELS + _SIGNAL_LABELS  # 4 個策略 + 5 個訊號 = 9 個選項
-
-
 def _render_control_bar():
     """
     標題下方獨立一排的控制列,只有一個欄位「使用策略」。
-    點開這個欄位,裡面同時列出 4 個預設策略組合跟 5 個訊號,一共 9 個選項,
-    用同一個下拉多選選單勾選,不會有任何一直顯示在畫面上的開關按鈕。
-
-    邏輯:
-    - 9 個選項裡,只要是「策略名稱」被選到,就套用那組策略的權重;
-      如果選了不只一個策略,只套用排序最前面的那個,並提示使用者。
-    - 5 個「訊號」選項,有勾選的就是這次要採用的訊號,沒勾的就關閉
-      (對應權重歸零,交給 _apply_signal_flags 處理)。
-
-    回傳 (strategy_name, signal_flags_dict)。
+    單純的下拉式單選選單,列出 config.STRATEGIES 裡的 5 個策略
+    (技術面策略/K線策略/籌碼策略/ML策略/新聞導向策略)。
+    每個策略都已經是 100% 依據單一訊號的完整預測系統(見 config.py),
+    這裡不需要再額外組合或開關任何東西。
+    回傳使用者選擇的策略名稱。
     """
     st.markdown('<div class="control-bar">', unsafe_allow_html=True)
     st.markdown('<div class="control-bar-label">使用策略</div>', unsafe_allow_html=True)
-
-    default_selection = [_STRATEGY_LABELS[0]] + _SIGNAL_LABELS
-    selected = st.multiselect(
+    strategy_name = st.selectbox(
         "使用策略",
-        _ALL_STRATEGY_OPTIONS,
-        default=default_selection,
-        key="strategy_multiselect",
+        list(config.STRATEGIES.keys()),
+        format_func=_strategy_label,
+        key="strategy_select",
         label_visibility="collapsed",
-        placeholder="選擇策略組合與要採用的訊號",
     )
-
-    selected_strategies = [label for label in _STRATEGY_LABELS if label in selected]
-    chosen_strategy_label = selected_strategies[0] if selected_strategies else _STRATEGY_LABELS[0]
-    strategy_name = _STRATEGY_KEYS[_STRATEGY_LABELS.index(chosen_strategy_label)]
-
-    signal_flags = {key: (label in selected) for label, key in _SIGNAL_LABEL_TO_KEY.items()}
-
-    if len(selected_strategies) > 1:
-        st.caption(
-            f"你選了多個策略組合({'、'.join(selected_strategies)}),"
-            f"目前只會套用「{chosen_strategy_label}」,如需切換請只留一個策略選項。"
-        )
-    elif not selected_strategies:
-        st.caption(f"未選擇策略組合,已自動套用預設的「{chosen_strategy_label}」。")
-
     st.markdown('</div>', unsafe_allow_html=True)
-    return strategy_name, signal_flags
-
-
-def _apply_signal_flags(strategy: dict, signal_flags: dict) -> dict:
-    """
-    依照使用者關閉的訊號開關,回傳一份權重已歸零的策略設定副本。
-    combine_signals() 本來就是用「有開的訊號權重總和」去正規化,
-    所以這裡只要把關閉訊號的權重設成 0,其餘訊號的比例就會自動放大,
-    不需要改動 decision.py。
-    """
-    adjusted = dict(strategy)
-    weight_map = {
-        "use_technical": "technical_weight",
-        "use_kline": "kline_weight",
-        "use_chip": "chip_weight",
-        "use_ml": "ml_weight",
-        "use_news": "news_weight",
-    }
-    for flag_key, weight_key in weight_map.items():
-        if not signal_flags.get(flag_key, True):
-            adjusted[weight_key] = 0.0
-    return adjusted
+    return strategy_name
 
 
 def _tone(score: float) -> str:
@@ -646,7 +587,7 @@ def _render_news_item(item: dict):
 
 _inject_theme()
 _render_header()
-strategy_name, signal_flags = _render_control_bar()
+strategy_name = _render_control_bar()
 
 tab_analyze, tab_update, tab_stats, tab_history = st.tabs(
     ["🔍 分析", "🔄 回顧更新", "📊 績效統計", "🕘 歷史紀錄"]
@@ -687,7 +628,7 @@ with tab_analyze:
             format_func=lambda p: period_labels.get(p, p),
         )
 
-    st.caption(f"目前使用策略:**{_strategy_label(strategy_name)}**(策略與預測工具開關可到最上方標題下方的控制列調整)")
+    st.caption(f"目前使用策略:**{_strategy_label(strategy_name)}**(可到最上方標題下方的控制列切換)")
 
     with st.expander("圖表顯示設定", expanded=False):
         c1, c2, c3, c4 = st.columns(4)
@@ -762,11 +703,8 @@ with tab_analyze:
             with st.spinner("搜尋近期新聞並分析情緒..."):
                 news_score_val, news_items = analyze_news_sentiment(ticker)
 
-            strategy = _apply_signal_flags(config.STRATEGIES[strategy_name], signal_flags)
+            strategy = config.STRATEGIES[strategy_name]
             strategy_label = config.get_strategy_label(strategy_name)
-            disabled_signals = [label for key, label in SIGNAL_TOGGLE_DEFS if not signal_flags.get(key, True)]
-            if disabled_signals:
-                st.caption(f"本次分析已關閉:{'、'.join(disabled_signals)},綜合分數只採計其餘開啟中的訊號。")
             recommendation = build_recommendation(
                 tech_score_val, ml_score_val, news_score_val, strategy,
                 kline_score_val=kline_score_val, chip_score_val=chip_score_val,
