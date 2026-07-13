@@ -38,7 +38,7 @@ from report import build_figure
 
 warnings.filterwarnings("ignore")
 
-st.set_page_config(page_title="股票分析建議系統", page_icon="📈", layout="wide")
+st.set_page_config(page_title="股市沙盤推演", page_icon="💰", layout="wide")
 
 
 def _inject_theme():
